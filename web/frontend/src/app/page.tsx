@@ -338,11 +338,16 @@ export default function ResignGUI() {
 
   // Eval bar
   const evalPercent = useMemo(() => {
+    if (evalScore <= -9999) return 0;
+    if (evalScore >= 9999) return 100;
     const clamped = Math.max(-1000, Math.min(1000, evalScore));
-    return 50 + (clamped / 1000) * 45;
+    return 50 + (clamped / 1000) * 50;
   }, [evalScore]);
 
-  const evalLabel = useMemo(() => (Math.abs(evalScore) / 100).toFixed(1), [evalScore]);
+  const evalLabel = useMemo(() => {
+    if (Math.abs(evalScore) >= 9000) return 'M';
+    return (Math.abs(evalScore) / 100).toFixed(1);
+  }, [evalScore]);
   const checkedKingSquare = useMemo(() => getCheckedKingSquare(fen), [fen]);
   const boardSquareStyles = useMemo(() => {
     const merged: Record<string, React.CSSProperties> = { ...legalMoveSquares };
@@ -651,12 +656,16 @@ export default function ResignGUI() {
     const g = gameRef.current;
     if (g.isCheckmate()) {
       const winner = g.turn() === 'w' ? 'Black' : 'White';
+      setEvalScore(winner === 'White' ? 99999 : -99999);
       endGame(`${winner} wins!`, 'by checkmate');
     } else if (g.isStalemate()) {
+      setEvalScore(0);
       endGame('Draw', 'by stalemate');
     } else if (g.isDraw()) {
+      setEvalScore(0);
       endGame('Draw', 'by insufficient material');
     } else if (g.isThreefoldRepetition()) {
+      setEvalScore(0);
       endGame('Draw', 'by repetition');
     } else if (g.isCheck()) {
       if (gameMode === 'engine') {
