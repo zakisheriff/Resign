@@ -779,23 +779,8 @@ export default function ResignGUI() {
     if (!square || !gameStarted || engineThinking.current || isPaused || pendingPromotion) return false;
     if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return false;
 
-    setSelectedSquare(null);
     const moves = gameRef.current.moves({ square: square as Square, verbose: true });
-    if (moves.length > 0) {
-      const highlights: Record<string, React.CSSProperties> = {};
-      for (const move of moves) {
-        const isCapture = gameRef.current.get(move.to as Square);
-        highlights[move.to] = {
-          background: isCapture
-            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
-          borderRadius: '50%',
-        };
-      }
-      highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
-      setLegalMoveSquares(highlights);
-    }
-    return true;
+    return moves.length > 0;
   }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion]);
 
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
