@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "bitboard.h"
+#include "nnue/nnue.h"
 #include <string>
 #include <cassert>
 
@@ -28,6 +29,7 @@ struct StateInfo {
     Square ep_square;
     int half_move_clock;
     int full_move_number;
+    NNUEdata nnue;
     StateInfo* previous; // For undoing moves
 };
 
@@ -80,6 +82,7 @@ public:
     bool can_castle(CastlingRights cr) const { return (st->castling_rights & cr) != 0; }
     int half_move_clock() const { return st->half_move_clock; }
     int full_move_number() const { return st->full_move_number; }
+    const StateInfo* state() const { return st; }
 
     // --- Attack Queries ---
     // Returns bitboard of all squares attacked by a given color

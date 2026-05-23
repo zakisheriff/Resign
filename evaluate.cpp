@@ -1,5 +1,28 @@
 #include "evaluate.h"
+#include "nnue/nnue.h"
 #include <algorithm>
+
+bool nnue_loaded = false;
+
+// NNUE Piece Mapping
+// nnue-probe expects: wking=1, wqueen=2, wrook=3, wbishop= 4, wknight= 5, wpawn= 6
+//                     bking=7, bqueen=8, brook=9, bbishop=10, bknight=11, bpawn=12
+const int NNUE_PIECE_MAP[15] = {
+    0,  // NO_PIECE
+    6,  // W_PAWN (1)
+    5,  // W_KNIGHT (2)
+    4,  // W_BISHOP (3)
+    3,  // W_ROOK (4)
+    2,  // W_QUEEN (5)
+    1,  // W_KING (6)
+    0, 0, // padding
+    12, // B_PAWN (9)
+    11, // B_KNIGHT (10)
+    10, // B_BISHOP (11)
+    9,  // B_ROOK (12)
+    8,  // B_QUEEN (13)
+    7   // B_KING (14)
+};
 
 // ============================================================================
 // Evaluation Constants & Weights
@@ -209,6 +232,51 @@ inline Bitboard adjacent_files(Square s) {
 // ============================================================================
 
 Value evaluate(const Position& pos) {
+    if (nnue_loaded) {
+        int pieces[33];
+        int squares[33];
+        int p_idx = 2;
+        
+        // Kings must be first two elements
+        pieces[0] = 1; // wking
+        squares[0] = lsb(pos.pieces(WHITE, KING));
+        
+        pieces[1] = 7; // bking
+        squares[1] = lsb(pos.pieces(BLACK, KING));
+        
+        // Populate other pieces
+        Bitboard occ = pos.pieces() ^ pos.pieces(KING);
+        while (occ) {
+            Square s = pop_lsb_sq(occ);
+            pieces[p_idx] = NNUE_PIECE_MAP[pos.piece_on(s)];
+            squares[p_idx] = s;
+            p_idx++;
+        }
+        pieces[p_idx] = 0; // Terminate array
+        
+        int player = pos.side_to_move() == WHITE ? 0 : 1;
+        
+        // We use incremental evaluate to get the massive speed boost
+        const StateInfo* st = pos.state();
+        NNUEdata* nnue_data[3] = {nullptr, nullptr, nullptr};
+        
+        if (st) {
+            nnue_data[0] = const_cast<NNUEdata*>(&st->nnue);
+            if (st->previous) {
+                nnue_data[1] = const_cast<NNUEdata*>(&st->previous->nnue);
+                if (st->previous->previous) {
+                    nnue_data[2] = const_cast<NNUEdata*>(&st->previous->previous->nnue);
+                }
+            }
+        }
+        
+        int score = nnue_evaluate_incremental(player, pieces, squares, nnue_data);
+        
+        // NNUE outputs in cp, return it directly. But wait, we need to adjust mate scores? 
+        // We just return score as cp.
+        return score;
+    }
+
     int mg[2] = {0, 0};
     int eg[2] = {0, 0};
     int phase = 0;

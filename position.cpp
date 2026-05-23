@@ -19,6 +19,7 @@ Position::Position() {
     st->half_move_clock = 0;
     st->full_move_number = 1;
     st->previous = nullptr;
+    st->nnue.accumulator.computedAccumulation = 0;
     stm = WHITE;
 }
 
@@ -64,6 +65,7 @@ void Position::set_fen(const std::string& fen) {
     st->ep_square = SQ_NONE;
     st->half_move_clock = 0;
     st->full_move_number = 1;
+    st->nnue.accumulator.computedAccumulation = 0;
 
     std::istringstream iss(fen);
     std::string placement, side, castling, en_passant, half_moves, full_moves;
@@ -225,6 +227,7 @@ void Position::do_move(Move m, StateInfo& new_st) {
     new_st.half_move_clock = st->half_move_clock + 1;
     new_st.full_move_number = st->full_move_number + (stm == BLACK ? 1 : 0);
     new_st.zobrist_key = st->zobrist_key;
+    new_st.nnue.accumulator.computedAccumulation = 0;
     new_st.previous = st;
     st = &new_st;
 
@@ -305,6 +308,7 @@ void Position::do_move(Move m, StateInfo& new_st) {
 }
 
 void Position::do_null_move(StateInfo& new_st) {
+    new_st.nnue.accumulator.computedAccumulation = 0;
     new_st.previous = st;
     st = &new_st;
     
