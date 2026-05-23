@@ -280,6 +280,29 @@ export default function ResignGUI() {
   const gameStartedRef = useRef(false);
   const gameModeRef = useRef<'engine' | 'friend'>('engine');
 
+  const [preMove, setPreMove] = useState<{ from: string; to: string; promotion?: string } | null>(null);
+  const preMoveRef = useRef<{ from: string; to: string; promotion?: string } | null>(null);
+
+  useEffect(() => {
+    preMoveRef.current = preMove;
+  }, [preMove]);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (preMoveRef.current) {
+        const boardContainer = document.querySelector('.board-container');
+        if (boardContainer && !boardContainer.contains(e.target as Node)) {
+          setPreMove(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleGlobalClick);
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalClick);
+    };
+  }, []);
+
   useEffect(() => {
     evalScoreRef.current = evalScore;
   }, [evalScore]);
@@ -400,8 +423,19 @@ export default function ResignGUI() {
       };
     }
 
+    if (preMove) {
+      merged[preMove.from] = {
+        background: 'rgba(244, 63, 94, 0.4)',
+        boxShadow: 'inset 0 0 0 2px rgba(244, 63, 94, 0.7)',
+      };
+      merged[preMove.to] = {
+        background: 'rgba(244, 63, 94, 0.4)',
+        boxShadow: 'inset 0 0 0 2px rgba(244, 63, 94, 0.7)',
+      };
+    }
+
     return merged;
-  }, [legalMoveSquares, checkedKingSquare]);
+  }, [legalMoveSquares, checkedKingSquare, preMove]);
 
   // ===== Timer logic =====
   const startTimer = useCallback(() => {
@@ -660,6 +694,24 @@ export default function ResignGUI() {
 
                   // After engine makes its move, it is the player's turn. Start pondering!
                   if (!gameRef.current.isGameOver()) {
+                    const currentPreMove = preMoveRef.current;
+                    if (currentPreMove) {
+                      try {
+                        const pm = gameRef.current.move({
+                          from: currentPreMove.from,
+                          to: currentPreMove.to,
+                          promotion: currentPreMove.promotion,
+                        });
+                        if (pm) {
+                          setPreMove(null);
+                          recordPlayerMove(pm);
+                          return;
+                        }
+                      } catch (pmError) {
+                        console.log("Pre-move illegal or failed:", currentPreMove, pmError);
+                      }
+                      setPreMove(null);
+                    }
                     analyzePosition(newFen, false);
                   }
                 }
@@ -694,6 +746,7 @@ export default function ResignGUI() {
     setGameStarted(false);
     stopTimer();
     engineThinking.current = false;
+    setPreMove(null);
   }
 
   function checkGameEnd() {
@@ -705,12 +758,15 @@ export default function ResignGUI() {
     } else if (g.isStalemate()) {
       setEvalScore(0);
       endGame('Draw', 'by stalemate');
-    } else if (g.isDraw()) {
-      setEvalScore(0);
-      endGame('Draw', 'by insufficient material');
     } else if (g.isThreefoldRepetition()) {
       setEvalScore(0);
-      endGame('Draw', 'by repetition');
+      endGame('Draw', 'by threefold repetition');
+    } else if (g.isInsufficientMaterial()) {
+      setEvalScore(0);
+      endGame('Draw', 'by insufficient material');
+    } else if (g.isDraw()) {
+      setEvalScore(0);
+      endGame('Draw', 'by 50-move rule');
     } else if (g.isCheck()) {
       if (gameMode === 'engine') {
         setStatusText(g.turn() === playerColor ? 'Your king is in check. Move the king or defend it.' : 'RESIGN is in check.');
@@ -750,6 +806,17 @@ export default function ResignGUI() {
     const legalMoves = gameRef.current.moves({ square: from as Square, verbose: true }) as Move[];
     return legalMoves.some((move) => move.to === to && move.flags.includes('p'));
   }
+
+  const getPlayerPseudoLegalMoves = useCallback((square: string) => {
+    try {
+      const fenParts = gameRef.current.fen().split(' ');
+      fenParts[1] = playerColor;
+      const tempChess = new Chess(fenParts.join(' '));
+      return tempChess.moves({ square: square as Square, verbose: true }) as Move[];
+    } catch {
+      return [];
+    }
+  }, [playerColor]);
 
   function commitPromotion(piece: PromotionPiece) {
     if (!pendingPromotion || engineThinking.current || gameRef.current.isGameOver()) return;
@@ -828,17 +895,65 @@ export default function ResignGUI() {
     }
   }
 
-  const handleCanDragPiece = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
-    if (!square || !gameStarted || engineThinking.current || isPaused || pendingPromotion) return false;
-    if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return false;
+  const isPlayerPromotionMove = useCallback((from: string, to: string) => {
+    const pseudoMoves = getPlayerPseudoLegalMoves(from);
+    return pseudoMoves.some((move) => move.to === to && move.flags.includes('p'));
+  }, [getPlayerPseudoLegalMoves]);
 
-    const moves = gameRef.current.moves({ square: square as Square, verbose: true });
-    return moves.length > 0;
-  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion]);
+  const handleCanDragPiece = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
+    if (!square || !gameStarted || isPaused || pendingPromotion) return false;
+
+    const turn = gameRef.current.turn();
+    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+
+    if (gameMode === 'engine') {
+      if (isPlayerTurn) {
+        if (engineThinking.current) return false;
+        const moves = gameRef.current.moves({ square: square as Square, verbose: true });
+        return moves.length > 0;
+      } else {
+        // Engine's turn: allow dragging player's pieces for pre-moves
+        const p = gameRef.current.get(square as Square);
+        if (!p || p.color !== playerColor) return false;
+        const pseudoMoves = getPlayerPseudoLegalMoves(square);
+        return pseudoMoves.length > 0;
+      }
+    } else {
+      const moves = gameRef.current.moves({ square: square as Square, verbose: true });
+      return moves.length > 0;
+    }
+  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
-    if (!square || !gameStarted || engineThinking.current || isPaused || pendingPromotion) return;
-    if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return;
+    if (!square || !gameStarted || isPaused || pendingPromotion) return;
+
+    const turn = gameRef.current.turn();
+    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+
+    if (gameMode === 'engine' && !isPlayerTurn) {
+      // Engine's turn: dragging for pre-move
+      setSelectedSquare(null);
+      const moves = getPlayerPseudoLegalMoves(square);
+      if (moves.length === 0) {
+        setLegalMoveSquares({});
+        return;
+      }
+      const highlights: Record<string, React.CSSProperties> = {};
+      for (const move of moves) {
+        const isCapture = gameRef.current.get(move.to as Square);
+        highlights[move.to] = {
+          background: isCapture
+            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
+            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
+          borderRadius: '50%',
+        };
+      }
+      highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
+      setLegalMoveSquares(highlights);
+      return;
+    }
+
+    if (gameMode === 'engine' && engineThinking.current) return;
     setSelectedSquare(null);
     const moves = gameRef.current.moves({ square: square as Square, verbose: true });
     if (moves.length === 0) {
@@ -860,12 +975,64 @@ export default function ResignGUI() {
     }
     highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
     setLegalMoveSquares(highlights);
-  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion]);
+  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
-    if (!gameStarted || engineThinking.current || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
-    if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return;
+    if (!gameStarted || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
 
+    const turn = gameRef.current.turn();
+    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+
+    if (gameMode === 'engine' && !isPlayerTurn) {
+      // Engine's turn: pre-moving via clicks
+      if (selectedSquare) {
+        const pseudoMoves = getPlayerPseudoLegalMoves(selectedSquare);
+        const matchedMove = pseudoMoves.find(m => m.to === square);
+
+        if (matchedMove) {
+          const isPromotion = matchedMove.flags.includes('p');
+          setPreMove({
+            from: selectedSquare,
+            to: square,
+            promotion: isPromotion ? 'q' : undefined,
+          });
+          setSelectedSquare(null);
+          setLegalMoveSquares({});
+          return;
+        }
+      }
+
+      // If clicked on one of player's pieces, select it and show legal destination squares
+      const clickedPiece = gameRef.current.get(square as Square);
+      if (clickedPiece && clickedPiece.color === playerColor) {
+        setSelectedSquare(square);
+        const moves = getPlayerPseudoLegalMoves(square);
+        if (moves.length === 0) {
+          setLegalMoveSquares({});
+          return;
+        }
+        const highlights: Record<string, React.CSSProperties> = {};
+        for (const move of moves) {
+          const isCapture = gameRef.current.get(move.to as Square);
+          highlights[move.to] = {
+            background: isCapture
+              ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
+              : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
+            borderRadius: '50%',
+          };
+        }
+        highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
+        setLegalMoveSquares(highlights);
+      } else {
+        // Clicked elsewhere on the board: cancel active preMove, selection, and highlights
+        setSelectedSquare(null);
+        setLegalMoveSquares({});
+        setPreMove(null);
+      }
+      return;
+    }
+
+    if (gameMode === 'engine' && engineThinking.current) return;
     if (selectedSquare) {
       if (isPromotionMove(selectedSquare, square)) {
         const pieceToMove = gameRef.current.get(selectedSquare as Square);
@@ -916,11 +1083,34 @@ export default function ResignGUI() {
         setStatusText(getCheckWarningText());
       }
     }
-  }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion]);
+  }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) => {
-    if (!gameStarted || !targetSquare || engineThinking.current || gameRef.current.isGameOver() || pendingPromotion) return false;
-    if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return false;
+    if (!gameStarted || !targetSquare || pendingPromotion) return false;
+
+    const turn = gameRef.current.turn();
+    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+
+    if (gameMode === 'engine' && !isPlayerTurn) {
+      // Engine's turn: queuing a pre-move
+      setSelectedSquare(null);
+      setLegalMoveSquares({});
+
+      const pseudoMoves = getPlayerPseudoLegalMoves(sourceSquare);
+      const isPseudoLegal = pseudoMoves.some(m => m.to === targetSquare);
+
+      if (isPseudoLegal) {
+        const isPromotion = pseudoMoves.some(m => m.to === targetSquare && m.flags.includes('p'));
+        setPreMove({
+          from: sourceSquare,
+          to: targetSquare,
+          promotion: isPromotion ? 'q' : undefined,
+        });
+      }
+      return false; // Always snap back visually for pre-moves!
+    }
+
+    if (engineThinking.current || gameRef.current.isGameOver()) return false;
 
     setSelectedSquare(null);
     setLegalMoveSquares({});
@@ -943,7 +1133,11 @@ export default function ResignGUI() {
     } catch {
       return false;
     }
-  }, [gameStarted, playerColor, evalScore, moveHistory, gameMode, pendingPromotion]);
+  }, [gameStarted, playerColor, evalScore, moveHistory, gameMode, pendingPromotion, getPlayerPseudoLegalMoves]);
+
+  const handleRightClickSquare = useCallback(() => {
+    setPreMove(null);
+  }, []);
 
   const undoMove = useCallback(() => {
     if (moveHistory.length === 0 || engineThinking.current) return;
@@ -1039,6 +1233,7 @@ export default function ResignGUI() {
     setPlayerColor(asColor);
     setGameMode(mode);
     setBoardOrientation(asColor === 'w' ? 'white' : 'black');
+    setPreMove(null);
     
     evalMap.current = {
       'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': 30,
@@ -1268,13 +1463,17 @@ export default function ResignGUI() {
                 lightSquareStyle: { backgroundColor: BOARD_THEMES[boardThemeIdx].light },
                 squareStyles: boardSquareStyles,
                 showNotation: true,
-                allowDragging: gameStarted && !engineThinking.current && !isPaused,
+                allowDragging: gameStarted && !isPaused && (
+                  !engineThinking.current || 
+                  (gameMode === 'engine' && gameRef.current.turn() !== playerColor)
+                ),
                 animationDurationInMs: 200,
                 onPieceDrop: handlePieceDrop,
                 onPieceDrag: handlePieceDrag,
                 canDragPiece: handleCanDragPiece,
                 onSquareMouseDown: handleSquareClick,
                 onSquareClick: handleSquareClick,
+                onSquareRightClick: handleRightClickSquare,
                 squareRenderer: renderCustomSquare,
               }}
             />
@@ -1336,21 +1535,7 @@ export default function ResignGUI() {
               </button>
             </div>
 
-            {gameMode === 'engine' && (
-              <div className="active-bot-card">
-                <div className="active-bot-badge">
-                  {isLogoBot(selectedBot.id) ? (
-                    <img src="/Logo.png" className="brand-logo-image brand-logo-image--pad" alt={`${selectedBot.name} logo`} />
-                  ) : (
-                    selectedBot.badge
-                  )}
-                </div>
-                <div className="active-bot-copy">
-                  <strong>{selectedBot.name}</strong>
-                  <span>{selectedBot.title} · {selectedBot.elo}</span>
-                </div>
-              </div>
-            )}
+
 
             {/* Time control */}
             <div style={{ position: 'relative' }}>
