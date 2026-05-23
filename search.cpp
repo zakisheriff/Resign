@@ -113,10 +113,6 @@ void SearchThread::search() {
     for (int d = 1; d <= max_depth; ++d) {
         if (stop_search) break;
         
-        if (thread_id == 0) {
-            std::cout << "info string debug starting depth " << d << std::endl;
-        }
-        
         int alpha = -VALUE_INFINITE;
         int beta = VALUE_INFINITE;
         
@@ -141,10 +137,6 @@ void SearchThread::search() {
         }
         
         if (stop_search) break;
-        
-        if (thread_id == 0) {
-            std::cout << "info string debug finished depth " << d << " score " << score << std::endl;
-        }
 
         
         // Output info only from Main Thread (ID = 0)
