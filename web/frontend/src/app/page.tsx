@@ -170,6 +170,8 @@ export default function ResignGUI() {
   const [moveHistory, setMoveHistory] = useState<RecordedMove[]>([]);
   const [undoneMoves, setUndoneMoves] = useState<RecordedMove[]>([]);
   const lastEvalRef = useRef<number>(0); // start at standard 0.3 pawn advantage
+  const evalScoreRef = useRef<number>(0);
+  const moveHistoryRef = useRef<RecordedMove[]>([]);
 
   // Eval map to cache evaluations for FENs and dynamically resolve move classifications
   const evalMap = useRef<Record<string, number>>({
@@ -190,6 +192,14 @@ export default function ResignGUI() {
   // Customization
   const [boardThemeIdx, setBoardThemeIdx] = useState(0);
   const [pieceSet, setPieceSet] = useState('neo');
+
+  useEffect(() => {
+    evalScoreRef.current = evalScore;
+  }, [evalScore]);
+
+  useEffect(() => {
+    moveHistoryRef.current = moveHistory;
+  }, [moveHistory]);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('boardThemeIdx');
@@ -420,12 +430,12 @@ export default function ResignGUI() {
                   promotion: best.length >= 5 ? best[4] : undefined,
                 });
                 if (move) {
-                  const evalAfter = evalScore;
+                  const evalAfter = evalScoreRef.current;
                   const movingColor = move.color;
                   const cpLoss = movingColor === 'w'
                     ? Math.max(0, evalBefore - evalAfter)
                     : Math.max(0, evalAfter - evalBefore);
-                  const totalMoves = moveHistory.length;
+                  const totalMoves = moveHistoryRef.current.length;
                   const newFen = gameRef.current.fen();
 
                   const recorded: RecordedMove = {
@@ -467,7 +477,7 @@ export default function ResignGUI() {
     socket.onclose = () => console.log('WebSocket closed');
 
     return () => socket.close();
-  }, [playerColor, evalScore, moveHistory, analyzePosition, updateMoveEvaluations]);
+  }, [playerColor, analyzePosition, updateMoveEvaluations]);
 
   // ===== Game end detection =====
   function endGame(result: string, sub: string) {
