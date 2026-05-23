@@ -2,6 +2,7 @@
 #include "tt.h"
 #include "evaluate.h"
 #include "movepick.h"
+#include "syzygy/tbprobe.h"
 #include <iostream>
 #include <chrono>
 #include <algorithm>
@@ -115,8 +116,25 @@ void SearchThread::search() {
         int alpha = -VALUE_INFINITE;
         int beta = VALUE_INFINITE;
         
-        // Aspiration Windows could be added here, using simple full window for now
-        int score = alpha_beta(root_pos, d, alpha, beta, 0, false);
+        // Aspiration Windows
+        if (d >= 4 && best_score_root != -VALUE_INFINITE) {
+            alpha = std::max(-VALUE_INFINITE, best_score_root - 50);
+            beta  = std::min( VALUE_INFINITE, best_score_root + 50);
+        }
+        
+        int score;
+        while (true) {
+            score = alpha_beta(root_pos, d, alpha, beta, 0, false);
+            if (stop_search) break;
+            
+            if (score <= alpha) {
+                alpha = std::max(-VALUE_INFINITE, alpha - 200); // Fail low, widen window
+            } else if (score >= beta) {
+                beta = std::min(VALUE_INFINITE, beta + 200);    // Fail high, widen window
+            } else {
+                break; // Score is strictly inside the window
+            }
+        }
         
         if (stop_search) break;
         
@@ -213,6 +231,27 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
     if (ply > 0 && pos.is_draw(ply)) return 0;
     if (ply >= MAX_PLY - 1) return evaluate(pos);
     
+    // Syzygy Endgame Tablebases Probe
+    if (TB_LARGEST > 0 && popcount(pos.pieces()) <= TB_LARGEST) {
+        int ep_sq = pos.state()->ep_square;
+        unsigned ep = ep_sq == SQ_NONE ? 0 : ep_sq;
+        unsigned res = tb_probe_wdl(
+            pos.pieces(WHITE), pos.pieces(BLACK),
+            pos.pieces(KING), pos.pieces(QUEEN), pos.pieces(ROOK),
+            pos.pieces(BISHOP), pos.pieces(KNIGHT), pos.pieces(PAWN),
+            pos.state()->half_move_clock, pos.state()->castling_rights,
+            ep, pos.side_to_move() == WHITE);
+            
+        if (res != TB_RESULT_FAILED) {
+            int wdl = TB_GET_WDL(res);
+            int tb_score;
+            if (wdl == TB_WIN) tb_score = 20000 - ply;
+            else if (wdl == TB_LOSS) tb_score = -20000 + ply;
+            else tb_score = 0;
+            return tb_score;
+        }
+    }
+    
     // Mate distance pruning
     alpha = std::max(alpha, -VALUE_MATE + ply);
     beta = std::min(beta, VALUE_MATE - ply - 1);
@@ -230,11 +269,20 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
     
     int eval = evaluate(pos);
     
-    // Null Move Pruning
+    // Reverse Futility Pruning (Static Null Move Pruning)
+    if (!in_check && depth <= 3 && !do_null && std::abs(beta) < VALUE_MATE - MAX_PLY) {
+        int rfp_margin = 75 * depth;
+        if (eval - rfp_margin >= beta) {
+            return eval; // Fail-high statically
+        }
+    }
+    
+    // Adaptive Null Move Pruning
     if (do_null && !in_check && depth >= 3 && eval >= beta && pos.has_non_pawn_material(pos.side_to_move())) {
+        int R = 3 + depth / 6;
         StateInfo st;
         pos.do_null_move(st);
-        int null_score = -alpha_beta(pos, depth - 3, -beta, -beta + 1, ply + 1, false);
+        int null_score = -alpha_beta(pos, depth - R - 1, -beta, -beta + 1, ply + 1, false);
         pos.undo_null_move();
         
         if (null_score >= beta) {
@@ -252,6 +300,14 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
         if (!pos.is_legal(m)) continue;
         
         bool is_capture = pos.piece_on(m.to()) != NO_PIECE || m.type() == EN_PASSANT;
+        
+        // Futility Pruning
+        if (depth == 1 && !in_check && !is_capture && m.type() != PROMOTION && best_score > -VALUE_MATE + MAX_PLY) {
+            int fp_margin = 300; // Minor piece approx
+            if (eval + fp_margin <= alpha) {
+                continue; // Skip quiet moves if hopelessly behind
+            }
+        }
         
         StateInfo st;
         pos.do_move(m, st);

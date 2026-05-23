@@ -272,9 +272,9 @@ Value evaluate(const Position& pos) {
         
         int score = nnue_evaluate_incremental(player, pieces, squares, nnue_data);
         
-        // NNUE outputs in cp, return it directly. But wait, we need to adjust mate scores? 
-        // We just return score as cp.
-        return score;
+        // NNUE outputs raw internal values. Scale down to standard centipawns.
+        // FV_SCALE is 16 in standard Stockfish networks.
+        return score / 16;
     }
 
     int mg[2] = {0, 0};

@@ -2,6 +2,7 @@
 #include "search.h"
 #include "tt.h"
 #include "movegen.h"
+#include "syzygy/tbprobe.h"
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -66,6 +67,7 @@ void loop() {
             std::cout << "id author The Atom" << std::endl;
             std::cout << "option name Hash type spin default 256 min 1 max 131072" << std::endl;
             std::cout << "option name Threads type spin default 1 min 1 max 1024" << std::endl;
+            std::cout << "option name SyzygyPath type string default <empty>" << std::endl;
             std::cout << "option name Clear Hash type button" << std::endl;
             std::cout << "uciok" << std::endl;
         } else if (token == "isready") {
@@ -84,6 +86,8 @@ void loop() {
                 TT.resize(std::stoi(value));
             } else if (name == "Threads") {
                 Threads.init(std::stoi(value));
+            } else if (name == "SyzygyPath") {
+                tb_init(value.c_str());
             } else if (name == "Clear Hash") {
                 TT.clear();
             }
