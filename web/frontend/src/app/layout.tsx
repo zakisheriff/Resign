@@ -105,39 +105,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const structuredData = [
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      name: SITE_NAME,
-      url: SITE_URL,
-      image: `${SITE_URL}${SITE_LOGO_PATH}`,
-      description: SITE_DESCRIPTION,
-      inLanguage: "en",
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: SITE_NAME,
-      applicationCategory: "GameApplication",
-      operatingSystem: "Web",
-      url: SITE_URL,
-      description: SITE_DESCRIPTION,
-      publisher: {
-        "@type": "Organization",
-        name: SITE_CREATOR,
-        logo: {
-          "@type": "ImageObject",
-          url: `${SITE_URL}${SITE_LOGO_PATH}`,
-        },
-      },
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
-    },
-  ];
+
 
   return (
     <html
@@ -147,7 +115,44 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: SITE_NAME,
+              url: SITE_URL,
+              image: `${SITE_URL}${SITE_LOGO_PATH}`,
+              description: SITE_DESCRIPTION,
+              inLanguage: "en",
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              name: SITE_NAME,
+              applicationCategory: "GameApplication",
+              operatingSystem: "Web",
+              url: SITE_URL,
+              description: SITE_DESCRIPTION,
+              publisher: {
+                "@type": "Organization",
+                name: SITE_CREATOR,
+                logo: {
+                  "@type": "ImageObject",
+                  url: `${SITE_URL}${SITE_LOGO_PATH}`,
+                },
+              },
+              offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+              },
+            }),
+          }}
         />
         {children}
       </body>
