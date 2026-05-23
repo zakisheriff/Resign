@@ -360,7 +360,10 @@ export default function ResignGUI() {
   }, []);
 
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+    const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const wsUrl =
+      process.env.NEXT_PUBLIC_WS_URL ||
+      (isLocalHost ? 'ws://localhost:3001' : 'wss://zakisheriff-resign-backend.hf.space');
     const socket = new WebSocket(wsUrl);
     ws.current = socket;
 
