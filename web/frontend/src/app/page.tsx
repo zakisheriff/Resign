@@ -65,12 +65,18 @@ const PIECE_SETS = [
 ];
 
 const BOT_PRESETS = [
-  { id: 'resign', name: 'RESIGN', title: 'House Engine', elo: 676, blurb: 'The homegrown engine. Fast, punchy, and always ready to scrap.', badge: 'R', moveTimeMs: 1000, ponderDepth: 12 },
-  { id: 'stockfish', name: 'Stockfish', title: 'Endgame Monster', elo: 3200, blurb: 'Longest think time. Feels the closest to a top engine boss fight.', badge: 'SF', moveTimeMs: 1600, ponderDepth: 14 },
-  { id: 'magnus', name: 'Magnus', title: 'Practical King', elo: 2850, blurb: 'Solid, patient, and happy to squeeze tiny edges forever.', badge: 'M', moveTimeMs: 1250, ponderDepth: 12 },
-  { id: 'gotham', name: 'Levy Rozman', title: 'Trappy Coach', elo: 2350, blurb: 'Looks for cheeky tactics and fast practical pressure.', badge: 'L', moveTimeMs: 850, ponderDepth: 10 },
-  { id: 'hikaru', name: 'Hikaru', title: 'Bullet Demon', elo: 2950, blurb: 'Snappy decisions and quick tactical shots.', badge: 'H', moveTimeMs: 700, ponderDepth: 9 },
-  { id: 'mrbeast', name: 'MrBeast', title: 'Chaos Bot', elo: 950, blurb: 'Unpredictable, lighter search, and way more beatable.', badge: 'MB', moveTimeMs: 300, ponderDepth: 6 },
+  { id: 'resign', category: 'adaptive', name: 'RESIGN', title: 'House Engine', elo: 6767, blurb: 'The homegrown engine. Fast, punchy, and always ready to scrap.', badge: 'R', portrait: 'RS', moveTimeMs: 1000, ponderDepth: 12, gradient: 'linear-gradient(135deg, #7f8f52, #39421f)' },
+  { id: 'stockfish', category: 'adaptive', name: 'Stockfish', title: 'Endgame Monster', elo: 3200, blurb: 'Longest think time. Feels the closest to a top engine boss fight.', badge: 'SF', portrait: 'SF', moveTimeMs: 1600, ponderDepth: 14, gradient: 'linear-gradient(135deg, #6e7a86, #26303b)' },
+  { id: 'magnus', category: 'top-players', name: 'Magnus', title: 'Practical King', elo: 2850, blurb: 'Solid, patient, and happy to squeeze tiny edges forever.', badge: 'M', portrait: 'MG', moveTimeMs: 1250, ponderDepth: 12, gradient: 'linear-gradient(135deg, #c9a56a, #6f4e1d)' },
+  { id: 'hikaru', category: 'top-players', name: 'Hikaru', title: 'Bullet Demon', elo: 2950, blurb: 'Snappy decisions and quick tactical shots.', badge: 'H', portrait: 'HK', moveTimeMs: 700, ponderDepth: 9, gradient: 'linear-gradient(135deg, #b56066, #442038)' },
+  { id: 'gotham', category: 'creators', name: 'Levy Rozman', title: 'Trappy Coach', elo: 2350, blurb: 'Looks for cheeky tactics and fast practical pressure.', badge: 'L', portrait: 'LR', moveTimeMs: 850, ponderDepth: 10, gradient: 'linear-gradient(135deg, #587c9a, #203549)' },
+  { id: 'mrbeast', category: 'creators', name: 'MrBeast', title: 'Chaos Bot', elo: 950, blurb: 'Unpredictable, lighter search, and way more beatable.', badge: 'MB', portrait: 'MB', moveTimeMs: 300, ponderDepth: 6, gradient: 'linear-gradient(135deg, #3cb7d6, #1d4865)' },
+];
+
+const BOT_CATEGORIES = [
+  { id: 'adaptive', name: 'Engines', subtitle: 'Flexible training bots', accent: '#8bc34a', preview: 'AI' },
+  { id: 'creators', name: 'Creators', subtitle: 'Streamer-inspired chaos', accent: '#f59e0b', preview: 'CR' },
+  { id: 'top-players', name: 'Top Players', subtitle: 'Elite practical monsters', accent: '#38bdf8', preview: 'TP' },
 ];
 
 const CLASS_LABELS: Record<MoveClassification, { symbol: React.ReactNode; label: string }> = {
@@ -238,6 +244,7 @@ export default function ResignGUI() {
   const [boardThemeIdx, setBoardThemeIdx] = useState(0);
   const [pieceSet, setPieceSet] = useState('neo');
   const [selectedBotId, setSelectedBotId] = useState('resign');
+  const [selectedBotCategoryId, setSelectedBotCategoryId] = useState('adaptive');
 
   useEffect(() => {
     evalScoreRef.current = evalScore;
@@ -250,6 +257,19 @@ export default function ResignGUI() {
   const selectedBot = useMemo(
     () => BOT_PRESETS.find((bot) => bot.id === selectedBotId) ?? BOT_PRESETS[0],
     [selectedBotId]
+  );
+
+  const botsByCategory = useMemo(
+    () => BOT_CATEGORIES.map((category) => ({
+      ...category,
+      bots: BOT_PRESETS.filter((bot) => bot.category === category.id),
+    })),
+    []
+  );
+
+  const selectedBotCategory = useMemo(
+    () => botsByCategory.find((category) => category.id === selectedBotCategoryId) ?? botsByCategory[0],
+    [botsByCategory, selectedBotCategoryId]
   );
 
   useEffect(() => {
@@ -1112,7 +1132,7 @@ export default function ResignGUI() {
                 <div className="player-avatar">
                   <img src="https://ui-avatars.com/api/?name=Y&background=5b4fcf&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
                 </div>
-                <span>{gameMode === 'engine' ? 'You ' : 'You (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(676)' : ''}</span></span>
+                <span>{gameMode === 'engine' ? 'You ' : 'You (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'w' ? 'active-clock' : ''} ${whiteTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(whiteTime)}
@@ -1125,7 +1145,7 @@ export default function ResignGUI() {
                 <div className="player-avatar">
                   <img src="https://ui-avatars.com/api/?name=Y&background=5b4fcf&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
                 </div>
-                <span>{gameMode === 'engine' ? 'You ' : 'You (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(676)' : ''}</span></span>
+                <span>{gameMode === 'engine' ? 'You ' : 'You (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'b' ? 'active-clock' : ''} ${blackTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(blackTime)}
@@ -1266,29 +1286,70 @@ export default function ResignGUI() {
           </div>
         ) : panelTab === 'bots' ? (
           <div className="panel-content">
-            <div className="bots-header">
-              <h3>Choose A Bot</h3>
-              <p>Pick a personality, then start a game from the New Game tab.</p>
+            <div className="bots-browser">
+              <div className="bots-hero">
+                <div>
+                  <span className="bots-kicker">Bot Browser</span>
+                  <h3>Choose your opponent</h3>
+                  <p>Browse categories, pick a personality, then jump back to New Game and play.</p>
+                </div>
+                <div className="bots-hero-badge">{selectedBot.badge}</div>
+              </div>
+
+              <div className="bot-category-list">
+                {botsByCategory.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={`bot-category-card ${selectedBotCategoryId === category.id ? 'active' : ''}`}
+                    onClick={() => setSelectedBotCategoryId(category.id)}
+                    style={{ ['--bot-accent' as string]: category.accent }}
+                  >
+                    <div className="bot-category-avatar">{category.preview}</div>
+                    <div className="bot-category-copy">
+                      <strong>{category.name}</strong>
+                      <span>{category.subtitle}</span>
+                    </div>
+                    <div className="bot-category-count">{category.bots.length} bots</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="bot-list">
-              {BOT_PRESETS.map((bot) => (
-                <button
-                  key={bot.id}
-                  type="button"
-                  className={`bot-card ${selectedBotId === bot.id ? 'active' : ''}`}
-                  onClick={() => setSelectedBotId(bot.id)}
-                >
-                  <div className="bot-card-top">
-                    <div className="bot-badge">{bot.badge}</div>
-                    <div className="bot-meta">
+
+            <div className="bot-shelf">
+              <div className="bot-shelf-header">
+                <div>
+                  <h4>{selectedBotCategory.name}</h4>
+                  <p>{selectedBotCategory.subtitle}</p>
+                </div>
+                <span>{selectedBotCategory.bots.length} bots</span>
+              </div>
+
+              <div className="bot-shelf-grid">
+                {selectedBotCategory.bots.map((bot) => (
+                  <button
+                    key={bot.id}
+                    type="button"
+                    className={`bot-showcase-card ${selectedBotId === bot.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedBotId(bot.id);
+                      setSelectedBotCategoryId(bot.category);
+                    }}
+                  >
+                    <div className="bot-showcase-portrait" style={{ background: bot.gradient }}>
+                      <span>{bot.portrait}</span>
+                    </div>
+                    <div className="bot-showcase-copy">
                       <strong>{bot.name}</strong>
                       <span>{bot.title}</span>
                     </div>
-                    <div className="bot-elo">{bot.elo}</div>
-                  </div>
-                  <p>{bot.blurb}</p>
-                </button>
-              ))}
+                    <div className="bot-showcase-footer">
+                      <span>{bot.elo}</span>
+                      <span>{selectedBotId === bot.id ? 'Selected' : 'Play'}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : panelTab === 'review' ? (
