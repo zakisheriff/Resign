@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Chess, Square } from 'chess.js';
+import { Chess, Square, Move } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import {
   Play, Users, ChevronDown, ChevronUp, RotateCcw, Flag, Eye, SkipBack,
@@ -13,18 +13,26 @@ import {
 
 // ===== Types =====
 type MoveClassification = 'brilliant' | 'great' | 'best' | 'book' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+type PromotionPiece = 'q' | 'r' | 'b' | 'n';
 
 interface RecordedMove {
   moveNumber: number;
   san: string;
   from: string;
   to: string;
+  promotion?: PromotionPiece;
   fen: string;            // position AFTER this move
   color: 'w' | 'b';
   evalBefore: number;     // centipawns from white's perspective
   evalAfter: number;
   cpLoss: number;
   classification: MoveClassification;
+}
+
+interface PendingPromotion {
+  from: string;
+  to: string;
+  color: 'w' | 'b';
 }
 
 const TIME_CONTROLS = [
@@ -169,6 +177,7 @@ export default function ResignGUI() {
   // Move history
   const [moveHistory, setMoveHistory] = useState<RecordedMove[]>([]);
   const [undoneMoves, setUndoneMoves] = useState<RecordedMove[]>([]);
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const lastEvalRef = useRef<number>(0); // start at standard 0.3 pawn advantage
   const evalScoreRef = useRef<number>(0);
   const moveHistoryRef = useRef<RecordedMove[]>([]);
@@ -460,6 +469,7 @@ export default function ResignGUI() {
                     san: move.san,
                     from: move.from,
                     to: move.to,
+                    promotion: move.promotion as PromotionPiece | undefined,
                     fen: newFen,
                     color: movingColor as 'w' | 'b',
                     evalBefore,
@@ -543,7 +553,40 @@ export default function ResignGUI() {
     return highlights;
   }
 
-  function recordPlayerMove(move: any) {
+  function isPromotionMove(from: string, to: string) {
+    const legalMoves = gameRef.current.moves({ square: from as Square, verbose: true }) as Move[];
+    return legalMoves.some((move) => move.to === to && move.flags.includes('p'));
+  }
+
+  function commitPromotion(piece: PromotionPiece) {
+    if (!pendingPromotion || engineThinking.current || gameRef.current.isGameOver()) return;
+
+    try {
+      const move = gameRef.current.move({
+        from: pendingPromotion.from,
+        to: pendingPromotion.to,
+        promotion: piece,
+      });
+
+      if (move) {
+        setPendingPromotion(null);
+        setSelectedSquare(null);
+        setLegalMoveSquares({});
+        recordPlayerMove(move);
+      }
+    } catch (error) {
+      console.error('Promotion move failed:', error);
+      setPendingPromotion(null);
+    }
+  }
+
+  function cancelPromotion() {
+    setPendingPromotion(null);
+    setSelectedSquare(null);
+    setLegalMoveSquares({});
+  }
+
+  function recordPlayerMove(move: Move) {
     const prevFen = move.color === 'w' 
       ? gameRef.current.fen().replace(' b ', ' w ') // approximate predecessor if we don't have it
       : gameRef.current.fen().replace(' w ', ' b ');
@@ -565,6 +608,7 @@ export default function ResignGUI() {
       san: move.san,
       from: move.from,
       to: move.to,
+      promotion: move.promotion as PromotionPiece | undefined,
       fen: gameRef.current.fen(),
       color: movingColor,
       evalBefore,
@@ -592,7 +636,7 @@ export default function ResignGUI() {
   }
 
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
-    if (!square || !gameStarted || engineThinking.current || isPaused) return;
+    if (!square || !gameStarted || engineThinking.current || isPaused || pendingPromotion) return;
     if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return;
     setSelectedSquare(null);
     const moves = gameRef.current.moves({ square: square as Square, verbose: true });
@@ -609,15 +653,23 @@ export default function ResignGUI() {
     }
     highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
     setLegalMoveSquares(highlights);
-  }, [gameStarted, playerColor, gameMode, isPaused]);
+  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion]);
 
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
-    if (!gameStarted || engineThinking.current || gameRef.current.isGameOver() || isPaused) return;
+    if (!gameStarted || engineThinking.current || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
     if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return;
 
     if (selectedSquare) {
+      if (isPromotionMove(selectedSquare, square)) {
+        const pieceToMove = gameRef.current.get(selectedSquare as Square);
+        if (pieceToMove) {
+          setPendingPromotion({ from: selectedSquare, to: square, color: pieceToMove.color });
+          return;
+        }
+      }
+
       try {
-        const move = gameRef.current.move({ from: selectedSquare, to: square, promotion: 'q' });
+        const move = gameRef.current.move({ from: selectedSquare, to: square });
         if (move) {
           setSelectedSquare(null);
           setLegalMoveSquares({});
@@ -647,17 +699,25 @@ export default function ResignGUI() {
       setSelectedSquare(null);
       setLegalMoveSquares({});
     }
-  }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused]);
+  }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion]);
 
   const handlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) => {
-    if (!gameStarted || !targetSquare || engineThinking.current || gameRef.current.isGameOver()) return false;
+    if (!gameStarted || !targetSquare || engineThinking.current || gameRef.current.isGameOver() || pendingPromotion) return false;
     if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return false;
 
     setSelectedSquare(null);
     setLegalMoveSquares({});
 
+    if (isPromotionMove(sourceSquare, targetSquare)) {
+      const pieceToMove = gameRef.current.get(sourceSquare as Square);
+      if (pieceToMove) {
+        setPendingPromotion({ from: sourceSquare, to: targetSquare, color: pieceToMove.color });
+      }
+      return false;
+    }
+
     try {
-      const move = gameRef.current.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
+      const move = gameRef.current.move({ from: sourceSquare, to: targetSquare });
       if (move) {
         recordPlayerMove(move);
         return true;
@@ -666,7 +726,7 @@ export default function ResignGUI() {
     } catch {
       return false;
     }
-  }, [gameStarted, playerColor, evalScore, moveHistory, gameMode]);
+  }, [gameStarted, playerColor, evalScore, moveHistory, gameMode, pendingPromotion]);
 
   const undoMove = useCallback(() => {
     if (moveHistory.length === 0 || engineThinking.current) return;
@@ -713,7 +773,7 @@ export default function ResignGUI() {
     for (let i = 0; i < movesToRedo; i++) {
       const m = newUndone.pop()!;
       movesToApply.push(m);
-      gameRef.current.move({ from: m.from, to: m.to, promotion: 'q' });
+      gameRef.current.move({ from: m.from, to: m.to, promotion: m.promotion });
     }
     
     setUndoneMoves(newUndone);
@@ -751,6 +811,7 @@ export default function ResignGUI() {
     setEvalScore(30);
     setSelectedSquare(null);
     setLegalMoveSquares({});
+    setPendingPromotion(null);
     setMoveHistory([]);
     setShowEndModal(false);
     setPanelTab('new');
@@ -1048,7 +1109,7 @@ export default function ResignGUI() {
               </>
             )}
 
-            <button className="btn-secondary" onClick={() => { stopTimer(); setGameStarted(false); gameRef.current = new Chess(); setFen(gameRef.current.fen()); setEvalScore(30); setEngineLines([]); setMoveHistory([]); setStatusText('Click "Start Game" to begin'); engineThinking.current = false; }}>
+            <button className="btn-secondary" onClick={() => { stopTimer(); setGameStarted(false); gameRef.current = new Chess(); setFen(gameRef.current.fen()); setEvalScore(30); setEngineLines([]); setMoveHistory([]); setPendingPromotion(null); setStatusText('Click "Start Game" to begin'); engineThinking.current = false; }}>
               <Flag size={16} color="#e5a956" /> Reset
             </button>
 
@@ -1212,6 +1273,32 @@ export default function ResignGUI() {
                 New Game
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {pendingPromotion && (
+        <div className="promotion-overlay" onClick={cancelPromotion}>
+          <div className="promotion-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Choose promotion</h3>
+            <div className="promotion-grid">
+              {(['q', 'r', 'b', 'n'] as PromotionPiece[]).map((piece) => (
+                <button
+                  key={piece}
+                  className="promotion-piece-btn"
+                  onClick={() => commitPromotion(piece)}
+                  type="button"
+                >
+                  <img
+                    src={`https://images.chesscomfiles.com/chess-themes/pieces/${pieceSet}/150/${pendingPromotion.color}${piece}.png`}
+                    alt={`Promote to ${piece}`}
+                  />
+                </button>
+              ))}
+            </div>
+            <button className="promotion-cancel" onClick={cancelPromotion} type="button">
+              Cancel
+            </button>
           </div>
         </div>
       )}
