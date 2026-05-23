@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, SkipForward, Settings, Sparkles, BookOpen,
   Check, ThumbsUp, CircleDot, AlertTriangle, HelpCircle, XCircle, Cpu,
   Zap, Infinity as InfinityIcon, Square as SquareIcon, Swords, BarChart3, X,
-  Palette, Undo2, Redo2, Pause, PlayCircle
+  Palette, Undo2, Redo2, Pause, PlayCircle, Crown
 } from 'lucide-react';
 
 // ===== Types =====
@@ -792,21 +792,54 @@ export default function ResignGUI() {
   }
 
   // ===== Move logic =====
-  function showLegalMoves(square: string) {
-    const moves = gameRef.current.moves({ square: square as Square, verbose: true });
+  function buildHighlightsForMoves(square: string, moves: Move[]) {
     if (moves.length === 0) return {};
     const highlights: Record<string, React.CSSProperties> = {};
     for (const move of moves) {
       const isCapture = gameRef.current.get(move.to as Square);
-      highlights[move.to] = {
+      const moveStyle = {
         background: isCapture
           ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
           : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
         borderRadius: '50%',
       };
+      highlights[move.to] = moveStyle;
+
+      if (move.flags.includes('k') || move.flags.includes('q')) {
+        const rookSquare = move.flags.includes('k') ? `h${square[1]}` : `a${square[1]}`;
+        highlights[rookSquare] = moveStyle;
+      }
     }
     highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
     return highlights;
+  }
+
+  function showLegalMoves(square: string) {
+    const moves = gameRef.current.moves({ square: square as Square, verbose: true }) as Move[];
+    return buildHighlightsForMoves(square, moves);
+  }
+
+  function resolveCastleTargetSquare(from: string, to: string, legalMoves: Move[]) {
+    const movingPiece = gameRef.current.get(from as Square);
+    const targetPiece = gameRef.current.get(to as Square);
+
+    if (!movingPiece || movingPiece.type !== 'k' || !targetPiece || targetPiece.type !== 'r') {
+      return to;
+    }
+
+    if (movingPiece.color !== targetPiece.color || from[1] !== to[1]) {
+      return to;
+    }
+
+    const castleTarget = to.charCodeAt(0) > from.charCodeAt(0)
+      ? `g${from[1]}`
+      : `c${from[1]}`;
+
+    const isLegalCastle = legalMoves.some((move) =>
+      move.to === castleTarget && (move.flags.includes('k') || move.flags.includes('q'))
+    );
+
+    return isLegalCastle ? castleTarget : to;
   }
 
   function getCheckWarningText() {
@@ -959,18 +992,7 @@ export default function ResignGUI() {
         setLegalMoveSquares({});
         return;
       }
-      const highlights: Record<string, React.CSSProperties> = {};
-      for (const move of moves) {
-        const isCapture = gameRef.current.get(move.to as Square);
-        highlights[move.to] = {
-          background: isCapture
-            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
-          borderRadius: '50%',
-        };
-      }
-      highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
-      setLegalMoveSquares(highlights);
+      setLegalMoveSquares(buildHighlightsForMoves(square, moves));
       return;
     }
 
@@ -984,18 +1006,7 @@ export default function ResignGUI() {
       }
       return;
     }
-    const highlights: Record<string, React.CSSProperties> = {};
-    for (const move of moves) {
-      const isCapture = gameRef.current.get(move.to as Square);
-      highlights[move.to] = {
-        background: isCapture
-          ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-          : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
-        borderRadius: '50%',
-      };
-    }
-    highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
-    setLegalMoveSquares(highlights);
+    setLegalMoveSquares(buildHighlightsForMoves(square, moves as Move[]));
   }, [isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
@@ -1011,13 +1022,14 @@ export default function ResignGUI() {
       // Engine's turn: pre-moving via clicks
       if (selectedSquare) {
         const pseudoMoves = getPlayerPseudoLegalMoves(selectedSquare);
-        const matchedMove = pseudoMoves.find(m => m.to === square);
+        const resolvedTargetSquare = resolveCastleTargetSquare(selectedSquare, square, pseudoMoves);
+        const matchedMove = pseudoMoves.find(m => m.to === resolvedTargetSquare);
 
         if (matchedMove) {
           const isPromotion = matchedMove.flags.includes('p');
           setPreMove({
             from: selectedSquare,
-            to: square,
+            to: resolvedTargetSquare,
             promotion: isPromotion ? 'q' : undefined,
           });
           setSelectedSquare(null);
@@ -1035,18 +1047,7 @@ export default function ResignGUI() {
           setLegalMoveSquares({});
           return;
         }
-        const highlights: Record<string, React.CSSProperties> = {};
-        for (const move of moves) {
-          const isCapture = gameRef.current.get(move.to as Square);
-          highlights[move.to] = {
-            background: isCapture
-              ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-              : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
-            borderRadius: '50%',
-          };
-        }
-        highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
-        setLegalMoveSquares(highlights);
+        setLegalMoveSquares(buildHighlightsForMoves(square, moves));
       } else {
         // Clicked elsewhere on the board: cancel active preMove, selection, and highlights
         setSelectedSquare(null);
@@ -1058,16 +1059,19 @@ export default function ResignGUI() {
 
     if (currentGameMode === 'engine' && engineThinking.current) return;
     if (selectedSquare) {
-      if (isPromotionMove(selectedSquare, square)) {
+      const legalMoves = gameRef.current.moves({ square: selectedSquare as Square, verbose: true }) as Move[];
+      const resolvedTargetSquare = resolveCastleTargetSquare(selectedSquare, square, legalMoves);
+
+      if (isPromotionMove(selectedSquare, resolvedTargetSquare)) {
         const pieceToMove = gameRef.current.get(selectedSquare as Square);
         if (pieceToMove) {
-          setPendingPromotion({ from: selectedSquare, to: square, color: pieceToMove.color });
+          setPendingPromotion({ from: selectedSquare, to: resolvedTargetSquare, color: pieceToMove.color });
           return;
         }
       }
 
       try {
-        const move = gameRef.current.move({ from: selectedSquare, to: square });
+        const move = gameRef.current.move({ from: selectedSquare, to: resolvedTargetSquare });
         if (move) {
           setSelectedSquare(null);
           setLegalMoveSquares({});
@@ -1080,26 +1084,14 @@ export default function ResignGUI() {
     const clickedPiece = gameRef.current.get(square as Square);
     if (clickedPiece && clickedPiece.color === gameRef.current.turn()) {
       setSelectedSquare(square);
-      const moves = gameRef.current.moves({ square: square as Square, verbose: true });
-      if (moves.length === 0) {
+      if (gameRef.current.moves({ square: square as Square, verbose: true }).length === 0) {
         setLegalMoveSquares({});
         if (gameRef.current.isCheck()) {
           setStatusText(getCheckWarningText());
         }
         return;
       }
-      const highlights: Record<string, React.CSSProperties> = {};
-      for (const move of moves) {
-        const isCapture = gameRef.current.get(move.to as Square);
-        highlights[move.to] = {
-          background: isCapture
-            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-            : 'radial-gradient(circle, rgba(0,0,0,.2) 25%, transparent 25%)',
-          borderRadius: '50%',
-        };
-      }
-      highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
-      setLegalMoveSquares(highlights);
+      setLegalMoveSquares(showLegalMoves(square));
     } else {
       setSelectedSquare(null);
       setLegalMoveSquares({});
@@ -1124,13 +1116,14 @@ export default function ResignGUI() {
       setLegalMoveSquares({});
 
       const pseudoMoves = getPlayerPseudoLegalMoves(sourceSquare);
-      const isPseudoLegal = pseudoMoves.some(m => m.to === targetSquare);
+      const resolvedTargetSquare = resolveCastleTargetSquare(sourceSquare, targetSquare, pseudoMoves);
+      const isPseudoLegal = pseudoMoves.some(m => m.to === resolvedTargetSquare);
 
       if (isPseudoLegal) {
-        const isPromotion = pseudoMoves.some(m => m.to === targetSquare && m.flags.includes('p'));
+        const isPromotion = pseudoMoves.some(m => m.to === resolvedTargetSquare && m.flags.includes('p'));
         setPreMove({
           from: sourceSquare,
-          to: targetSquare,
+          to: resolvedTargetSquare,
           promotion: isPromotion ? 'q' : undefined,
         });
       }
@@ -1142,16 +1135,19 @@ export default function ResignGUI() {
     setSelectedSquare(null);
     setLegalMoveSquares({});
 
-    if (isPromotionMove(sourceSquare, targetSquare)) {
+    const legalMoves = gameRef.current.moves({ square: sourceSquare as Square, verbose: true }) as Move[];
+    const resolvedTargetSquare = resolveCastleTargetSquare(sourceSquare, targetSquare, legalMoves);
+
+    if (isPromotionMove(sourceSquare, resolvedTargetSquare)) {
       const pieceToMove = gameRef.current.get(sourceSquare as Square);
       if (pieceToMove) {
-        setPendingPromotion({ from: sourceSquare, to: targetSquare, color: pieceToMove.color });
+        setPendingPromotion({ from: sourceSquare, to: resolvedTargetSquare, color: pieceToMove.color });
       }
       return false;
     }
 
     try {
-      const move = gameRef.current.move({ from: sourceSquare, to: targetSquare });
+      const move = gameRef.current.move({ from: sourceSquare, to: resolvedTargetSquare });
       if (move) {
         recordPlayerMove(move);
         return true;
@@ -1480,8 +1476,11 @@ export default function ResignGUI() {
 
         {/* Board + eval */}
         <div className="board-wrapper">
-          <div className="eval-bar">
-            <div className="eval-bar-fill" style={{ height: `${evalPercent}%` }} />
+          <div
+            className="eval-bar"
+            style={{ ['--eval-percent' as '--eval-percent']: `${evalPercent}%` } as React.CSSProperties}
+          >
+            <div className="eval-bar-fill" />
             {evalScore <= 0 && <div className="eval-bar-label top-label">{evalLabel}</div>}
             {evalScore > 0 && <div className="eval-bar-label bottom-label">{evalLabel}</div>}
           </div>
@@ -1624,7 +1623,7 @@ export default function ResignGUI() {
                       Play as White
                     </button>
                     <button className="btn-secondary" onClick={() => startGame('b', 'engine')}>
-                      <RotateCcw size={16} color="#81b64c" /> Play as Black
+                      <Crown size={16} color="#f3f3f3" fill="#111111" /> Play as Black
                     </button>
                   </>
                 ) : (
