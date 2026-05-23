@@ -916,12 +916,14 @@ export default function ResignGUI() {
   }, [getPlayerPseudoLegalMoves]);
 
   const handleCanDragPiece = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
-    if (!square || !gameStarted || isPaused || pendingPromotion) return false;
+    if (!square || !gameStartedRef.current || isPaused || pendingPromotion) return false;
 
     const turn = gameRef.current.turn();
-    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+    const currentGameMode = gameModeRef.current;
+    const currentPlayerColor = playerColorRef.current;
+    const isPlayerTurn = currentGameMode === 'engine' ? turn === currentPlayerColor : true;
 
-    if (gameMode === 'engine') {
+    if (currentGameMode === 'engine') {
       if (isPlayerTurn) {
         if (engineThinking.current) return false;
         const moves = gameRef.current.moves({ square: square as Square, verbose: true });
@@ -929,7 +931,7 @@ export default function ResignGUI() {
       } else {
         // Engine's turn: allow dragging player's pieces for pre-moves
         const p = gameRef.current.get(square as Square);
-        if (!p || p.color !== playerColor) return false;
+        if (!p || p.color !== currentPlayerColor) return false;
         const pseudoMoves = getPlayerPseudoLegalMoves(square);
         return pseudoMoves.length > 0;
       }
@@ -937,17 +939,19 @@ export default function ResignGUI() {
       const moves = gameRef.current.moves({ square: square as Square, verbose: true });
       return moves.length > 0;
     }
-  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
+  }, [isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
-    if (!square || !gameStarted || isPaused || pendingPromotion) return;
+    if (!square || !gameStartedRef.current || isPaused || pendingPromotion) return;
 
     setDraggedSquare(square);
 
     const turn = gameRef.current.turn();
-    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+    const currentGameMode = gameModeRef.current;
+    const currentPlayerColor = playerColorRef.current;
+    const isPlayerTurn = currentGameMode === 'engine' ? turn === currentPlayerColor : true;
 
-    if (gameMode === 'engine' && !isPlayerTurn) {
+    if (currentGameMode === 'engine' && !isPlayerTurn) {
       // Engine's turn: dragging for pre-move
       setSelectedSquare(null);
       const moves = getPlayerPseudoLegalMoves(square);
@@ -970,7 +974,7 @@ export default function ResignGUI() {
       return;
     }
 
-    if (gameMode === 'engine' && engineThinking.current) return;
+    if (currentGameMode === 'engine' && engineThinking.current) return;
     setSelectedSquare(null);
     const moves = gameRef.current.moves({ square: square as Square, verbose: true });
     if (moves.length === 0) {
@@ -992,16 +996,18 @@ export default function ResignGUI() {
     }
     highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
     setLegalMoveSquares(highlights);
-  }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
+  }, [isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
     setDraggedSquare(null);
-    if (!gameStarted || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
+    if (!gameStartedRef.current || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
 
     const turn = gameRef.current.turn();
-    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+    const currentGameMode = gameModeRef.current;
+    const currentPlayerColor = playerColorRef.current;
+    const isPlayerTurn = currentGameMode === 'engine' ? turn === currentPlayerColor : true;
 
-    if (gameMode === 'engine' && !isPlayerTurn) {
+    if (currentGameMode === 'engine' && !isPlayerTurn) {
       // Engine's turn: pre-moving via clicks
       if (selectedSquare) {
         const pseudoMoves = getPlayerPseudoLegalMoves(selectedSquare);
@@ -1022,7 +1028,7 @@ export default function ResignGUI() {
 
       // If clicked on one of player's pieces, select it and show legal destination squares
       const clickedPiece = gameRef.current.get(square as Square);
-      if (clickedPiece && clickedPiece.color === playerColor) {
+      if (clickedPiece && clickedPiece.color === currentPlayerColor) {
         setSelectedSquare(square);
         const moves = getPlayerPseudoLegalMoves(square);
         if (moves.length === 0) {
@@ -1050,7 +1056,7 @@ export default function ResignGUI() {
       return;
     }
 
-    if (gameMode === 'engine' && engineThinking.current) return;
+    if (currentGameMode === 'engine' && engineThinking.current) return;
     if (selectedSquare) {
       if (isPromotionMove(selectedSquare, square)) {
         const pieceToMove = gameRef.current.get(selectedSquare as Square);
@@ -1101,16 +1107,18 @@ export default function ResignGUI() {
         setStatusText(getCheckWarningText());
       }
     }
-  }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
+  }, [selectedSquare, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) => {
     setDraggedSquare(null);
-    if (!gameStarted || !targetSquare || pendingPromotion) return false;
+    if (!gameStartedRef.current || !targetSquare || pendingPromotion) return false;
 
     const turn = gameRef.current.turn();
-    const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
+    const currentGameMode = gameModeRef.current;
+    const currentPlayerColor = playerColorRef.current;
+    const isPlayerTurn = currentGameMode === 'engine' ? turn === currentPlayerColor : true;
 
-    if (gameMode === 'engine' && !isPlayerTurn) {
+    if (currentGameMode === 'engine' && !isPlayerTurn) {
       // Engine's turn: queuing a pre-move
       setSelectedSquare(null);
       setLegalMoveSquares({});
@@ -1152,7 +1160,7 @@ export default function ResignGUI() {
     } catch {
       return false;
     }
-  }, [gameStarted, playerColor, evalScore, moveHistory, gameMode, pendingPromotion, getPlayerPseudoLegalMoves]);
+  }, [pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleRightClickSquare = useCallback(() => {
     setDraggedSquare(null);
@@ -1240,11 +1248,15 @@ export default function ResignGUI() {
   const startGame = useCallback((asColor: 'w' | 'b', mode: 'engine' | 'friend' = 'engine') => {
     resetEngine();
     gameRef.current = new Chess();
+    gameStartedRef.current = true;
+    playerColorRef.current = asColor;
+    gameModeRef.current = mode;
     setFen(gameRef.current.fen());
     setEngineLines([]);
     setEvalScore(30);
     setSelectedSquare(null);
     setLegalMoveSquares({});
+    setDraggedSquare(null);
     setPendingPromotion(null);
     setMoveHistory([]);
     setShowEndModal(false);
@@ -1545,33 +1557,35 @@ export default function ResignGUI() {
 
         {panelTab === 'new' ? (
           <div className="panel-content">
-            {/* Game Mode Selector */}
-            <div className="game-mode-selector">
-              <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
-                <Cpu size={14} /> vs RESIGN
-              </button>
-              <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
-                <Users size={14} /> Pass & Play
-              </button>
-            </div>
-
-
-
-            {/* Time control */}
-            <div style={{ position: 'relative' }}>
-              <button className="dropdown-btn" onClick={() => setShowTimeDropdown(!showTimeDropdown)}>
-                {tc.seconds === 0 ? <InfinityIcon size={14} /> : <Zap size={14} />} {tc.label} {showTimeDropdown ? <ChevronUp size={14} style={{ marginLeft: 'auto' }} /> : <ChevronDown size={14} style={{ marginLeft: 'auto' }} />}
-              </button>
-              {showTimeDropdown && (
-                <div className="time-dropdown">
-                  {TIME_CONTROLS.map((t, i) => (
-                    <button key={i} className={`time-option ${i === timeControlIdx ? 'selected' : ''}`} onClick={() => { setTimeControlIdx(i); setShowTimeDropdown(false); }}>
-                      {t.seconds === 0 ? <InfinityIcon size={14} /> : <Zap size={14} />} {t.label}
-                    </button>
-                  ))}
+            {!gameStarted && (
+              <>
+                {/* Game Mode Selector */}
+                <div className="game-mode-selector">
+                  <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
+                    <Cpu size={14} /> vs RESIGN
+                  </button>
+                  <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
+                    <Users size={14} /> Pass & Play
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {/* Time control */}
+                <div style={{ position: 'relative' }}>
+                  <button className="dropdown-btn" onClick={() => setShowTimeDropdown(!showTimeDropdown)}>
+                    {tc.seconds === 0 ? <InfinityIcon size={14} /> : <Zap size={14} />} {tc.label} {showTimeDropdown ? <ChevronUp size={14} style={{ marginLeft: 'auto' }} /> : <ChevronDown size={14} style={{ marginLeft: 'auto' }} />}
+                  </button>
+                  {showTimeDropdown && (
+                    <div className="time-dropdown">
+                      {TIME_CONTROLS.map((t, i) => (
+                        <button key={i} className={`time-option ${i === timeControlIdx ? 'selected' : ''}`} onClick={() => { setTimeControlIdx(i); setShowTimeDropdown(false); }}>
+                          {t.seconds === 0 ? <InfinityIcon size={14} /> : <Zap size={14} />} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {gameStarted ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
