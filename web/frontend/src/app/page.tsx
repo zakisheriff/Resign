@@ -1067,7 +1067,14 @@ export default function ResignGUI() {
   const isPlaying = gameStarted && !gameRef.current.isGameOver();
 
   return (
-    <div className="chess-layout">
+    <main className="chess-layout">
+      <section className="sr-only" aria-label="About RESIGN Chess">
+        <h1>RESIGN Chess lets you play chess online against RESIGN and custom bots.</h1>
+        <p>
+          Challenge engine-powered bots, pick blitz or rapid time controls, review moves,
+          choose promotion pieces, and play pass-and-play chess directly in your browser.
+        </p>
+      </section>
       {/* Board Area */}
       <div className="board-area">
         {/* Top Player Info (Black if orientation is White, White if orientation is Black) */}
@@ -1536,6 +1543,6 @@ export default function ResignGUI() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
