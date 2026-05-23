@@ -89,8 +89,8 @@ function getActiveSide(fen: string): 'w' | 'b' {
 }
 
 function getCpValue(score: number): number {
-  if (score > 10000) return 2000;
-  if (score < -10000) return -2000;
+  if (score > 30000) return 2000;
+  if (score < -30000) return -2000;
   return score;
 }
 
@@ -366,20 +366,25 @@ export default function ResignGUI() {
 
   // Eval bar
   const evalPercent = useMemo(() => {
-    if (evalScore <= -10000) return 0;
-    if (evalScore >= 10000) return 100;
+    if (evalScore <= -30000) return 0;
+    if (evalScore >= 30000) return 100;
     const clamped = Math.max(-1000, Math.min(1000, evalScore));
     return 50 + (clamped / 1000) * 50;
   }, [evalScore]);
 
   const evalLabel = useMemo(() => {
-    if (evalScore > 10000) {
-      const moves = 20000 - evalScore;
-      return `M${moves}`;
+    if (Math.abs(evalScore) === 99999) {
+      return 'M';
     }
-    if (evalScore < -10000) {
-      const moves = 20000 + evalScore;
-      return `M${moves}`;
+    if (evalScore > 30000) {
+      const plies = 31000 - evalScore;
+      const moves = Math.ceil(plies / 2);
+      return `M${Math.max(1, moves)}`;
+    }
+    if (evalScore < -30000) {
+      const plies = 31000 + evalScore;
+      const moves = Math.ceil(plies / 2);
+      return `M${Math.max(1, moves)}`;
     }
     return (Math.abs(evalScore) / 100).toFixed(1);
   }, [evalScore]);
@@ -593,9 +598,9 @@ export default function ResignGUI() {
             const side = getActiveSide(currentSearchFen.current);
             let fromWhite = 0;
             if (moves > 0) {
-              fromWhite = side === 'w' ? (20000 - moves) : (-20000 + moves);
+              fromWhite = side === 'w' ? (31000 - moves * 2) : (-31000 + moves * 2);
             } else {
-              fromWhite = side === 'w' ? (-20000 - moves) : (20000 + moves);
+              fromWhite = side === 'w' ? (-31000 - moves * 2) : (31000 + moves * 2);
             }
 
             const fenKey = currentSearchFen.current;
