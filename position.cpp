@@ -469,9 +469,11 @@ bool Position::has_non_pawn_material(Color c) const {
 }
 
 bool Position::is_draw(int ply) const {
+    (void)ply;
     if (st->half_move_clock >= 100) return true;
     
     StateInfo* curr = st->previous;
+    if (curr) curr = curr->previous; // Start at ply - 2 (same side to move)
     int k = 2;
     while (curr && k <= st->half_move_clock) {
         if (curr->zobrist_key == st->zobrist_key) {
@@ -483,6 +485,7 @@ bool Position::is_draw(int ply) const {
     }
     return false;
 }
+
 
 #ifdef TEST_POSITION
 int main() {

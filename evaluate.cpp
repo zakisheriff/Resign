@@ -7,22 +7,23 @@ bool nnue_loaded = false;
 // NNUE Piece Mapping
 // nnue-probe expects: wking=1, wqueen=2, wrook=3, wbishop= 4, wknight= 5, wpawn= 6
 //                     bking=7, bqueen=8, brook=9, bbishop=10, bknight=11, bpawn=12
-const int NNUE_PIECE_MAP[15] = {
-    0,  // NO_PIECE
-    6,  // W_PAWN (1)
-    5,  // W_KNIGHT (2)
-    4,  // W_BISHOP (3)
-    3,  // W_ROOK (4)
-    2,  // W_QUEEN (5)
-    1,  // W_KING (6)
-    0, 0, // padding
-    12, // B_PAWN (9)
-    11, // B_KNIGHT (10)
-    10, // B_BISHOP (11)
-    9,  // B_ROOK (12)
-    8,  // B_QUEEN (13)
-    7   // B_KING (14)
+const int NNUE_PIECE_MAP[16] = {
+    6,  // W_PAWN (0)
+    5,  // W_KNIGHT (1)
+    4,  // W_BISHOP (2)
+    3,  // W_ROOK (3)
+    2,  // W_QUEEN (4)
+    1,  // W_KING (5)
+    0, 0, // Padding (6, 7)
+    12, // B_PAWN (8)
+    11, // B_KNIGHT (9)
+    10, // B_BISHOP (10)
+    9,  // B_ROOK (11)
+    8,  // B_QUEEN (12)
+    7,  // B_KING (13)
+    0, 0  // Padding (14, 15)
 };
+
 
 // ============================================================================
 // Evaluation Constants & Weights

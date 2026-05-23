@@ -102,7 +102,10 @@ void TranspositionTable::store(Bitboard key, int score, int depth, Bound flag, M
     // 3. Always overwrite if it's the exact same position (same key) to update bounds/scores.
     
     bool replace = false;
-    if (entry.key32 == static_cast<uint32_t>(key >> 32)) {
+    uint32_t old_key32 = entry.key32;
+    uint32_t new_key32 = static_cast<uint32_t>(key >> 32);
+    
+    if (old_key32 == new_key32) {
         replace = true; // Same position, update it
     } else if (entry.age != current_age) {
         replace = true; // Old entry, overwrite
@@ -111,7 +114,7 @@ void TranspositionTable::store(Bitboard key, int score, int depth, Bound flag, M
     }
     
     if (replace) {
-        entry.key32 = static_cast<uint32_t>(key >> 32);
+        entry.key32 = new_key32;
         entry.score = static_cast<int16_t>(score);
         entry.depth = static_cast<int8_t>(depth);
         entry.flag = static_cast<uint8_t>(flag);
@@ -119,7 +122,7 @@ void TranspositionTable::store(Bitboard key, int score, int depth, Bound flag, M
         
         // If the new move is null but we already have a move in the table for this position,
         // preserve the old move (it might be a cutoff move from a previous shallower search)
-        if (move.is_ok() || entry.key32 != static_cast<uint32_t>(key >> 32)) {
+        if (move.is_ok() || old_key32 != new_key32) {
             entry.move = move.value();
         }
     }
