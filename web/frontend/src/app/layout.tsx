@@ -6,6 +6,7 @@ import {
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
   SITE_LOCALE,
+  SITE_LOGO_PATH,
   SITE_NAME,
   SITE_SHORT_NAME,
   SITE_TITLE,
@@ -74,9 +75,9 @@ export const metadata: Metadata = {
     images: ["/twitter-image"],
   },
   icons: {
-    icon: [{ url: "/favicon.ico" }],
-    shortcut: ["/favicon.ico"],
-    apple: ["/favicon.ico"],
+    icon: [{ url: "/icon.png", type: "image/png" }, { url: SITE_LOGO_PATH, type: "image/png" }],
+    shortcut: ["/icon.png"],
+    apple: ["/apple-icon.png"],
   },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -110,6 +111,7 @@ export default function RootLayout({
       "@type": "WebSite",
       name: SITE_NAME,
       url: SITE_URL,
+      image: `${SITE_URL}${SITE_LOGO_PATH}`,
       description: SITE_DESCRIPTION,
       inLanguage: "en",
     },
@@ -124,6 +126,10 @@ export default function RootLayout({
       publisher: {
         "@type": "Organization",
         name: SITE_CREATOR,
+        logo: {
+          "@type": "ImageObject",
+          url: `${SITE_URL}${SITE_LOGO_PATH}`,
+        },
       },
       offers: {
         "@type": "Offer",

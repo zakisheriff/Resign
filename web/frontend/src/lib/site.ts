@@ -19,3 +19,4 @@ export const SITE_KEYWORDS = [
 export const SITE_CREATOR = 'The Atom';
 export const SITE_LOCALE = 'en_US';
 export const THEME_COLOR = '#302e2b';
+export const SITE_LOGO_PATH = '/Logo.png';

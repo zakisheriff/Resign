@@ -1,5 +1,8 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { ImageResponse } from 'next/og';
 import {
+  SITE_LOGO_PATH,
   SITE_NAME,
   SITE_SHORT_NAME,
   SITE_TITLE,
@@ -13,7 +16,10 @@ export const size = {
 
 export const contentType = 'image/png';
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const logoBuffer = await readFile(path.join(process.cwd(), 'public', SITE_LOGO_PATH.replace(/^\//, '')));
+  const logoSrc = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+
   return new ImageResponse(
     (
       <div
@@ -52,11 +58,15 @@ export default function OpenGraphImage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 34,
-                  fontWeight: 800,
+                  overflow: 'hidden',
+                  padding: 12,
                 }}
               >
-                {SITE_SHORT_NAME[0]}
+                <img
+                  src={logoSrc}
+                  alt={`${SITE_NAME} logo`}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ fontSize: 26, color: '#9ca3af' }}>Play Online Chess</div>

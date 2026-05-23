@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import {
   SITE_DESCRIPTION,
+  SITE_LOGO_PATH,
   SITE_NAME,
   SITE_SHORT_NAME,
   THEME_COLOR,
@@ -18,9 +19,20 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: THEME_COLOR,
     icons: [
       {
-        src: '/favicon.ico',
-        sizes: '16x16 32x32 48x48',
-        type: 'image/x-icon',
+        src: '/icon.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: '/apple-icon.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: SITE_LOGO_PATH,
+        sizes: 'any',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   };

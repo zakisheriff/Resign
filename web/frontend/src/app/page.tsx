@@ -168,6 +168,10 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function isLogoBot(botId: string) {
+  return botId === 'resign';
+}
+
 function getCheckedKingSquare(fen: string): string | null {
   try {
     const chess = new Chess(fen);
@@ -1085,9 +1089,13 @@ export default function ResignGUI() {
               <div className="player-profile">
                 <div className="player-avatar">
                   {gameMode === 'engine' ? (
-                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
+                    isLogoBot(selectedBot.id) ? (
+                      <img src="/Logo.png" className="brand-logo-image" alt={`${selectedBot.name} logo`} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
+                    )
                   ) : (
-                    <img src="https://ui-avatars.com/api/?name=B&background=333&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
+                    <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                   )}
                 </div>
                 <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
@@ -1102,9 +1110,13 @@ export default function ResignGUI() {
               <div className="player-profile">
                 <div className="player-avatar">
                   {gameMode === 'engine' ? (
-                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
+                    isLogoBot(selectedBot.id) ? (
+                      <img src="/Logo.png" className="brand-logo-image" alt={`${selectedBot.name} logo`} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
+                    )
                   ) : (
-                    <img src="https://ui-avatars.com/api/?name=W&background=eee&color=000&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
+                    <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                   )}
                 </div>
                 <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
@@ -1152,7 +1164,7 @@ export default function ResignGUI() {
             <>
               <div className="player-profile">
                 <div className="player-avatar">
-                  <img src="https://ui-avatars.com/api/?name=Y&background=5b4fcf&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
+                  <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                 </div>
                 <span>{gameMode === 'engine' ? 'You ' : 'You (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
               </div>
@@ -1165,7 +1177,7 @@ export default function ResignGUI() {
             <>
               <div className="player-profile">
                 <div className="player-avatar">
-                  <img src="https://ui-avatars.com/api/?name=Y&background=5b4fcf&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
+                  <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                 </div>
                 <span>{gameMode === 'engine' ? 'You ' : 'You (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
               </div>
@@ -1205,7 +1217,13 @@ export default function ResignGUI() {
 
             {gameMode === 'engine' && (
               <div className="active-bot-card">
-                <div className="active-bot-badge">{selectedBot.badge}</div>
+                <div className="active-bot-badge">
+                  {isLogoBot(selectedBot.id) ? (
+                    <img src="/Logo.png" className="brand-logo-image brand-logo-image--pad" alt={`${selectedBot.name} logo`} />
+                  ) : (
+                    selectedBot.badge
+                  )}
+                </div>
                 <div className="active-bot-copy">
                   <strong>{selectedBot.name}</strong>
                   <span>{selectedBot.title} · {selectedBot.elo}</span>
@@ -1315,7 +1333,13 @@ export default function ResignGUI() {
                   <h3>Choose your opponent</h3>
                   <p>Browse categories, pick a personality, then jump back to New Game and play.</p>
                 </div>
-                <div className="bots-hero-badge">{selectedBot.badge}</div>
+                <div className="bots-hero-badge">
+                  {isLogoBot(selectedBot.id) ? (
+                    <img src="/Logo.png" className="brand-logo-image brand-logo-image--pad" alt={`${selectedBot.name} logo`} />
+                  ) : (
+                    selectedBot.badge
+                  )}
+                </div>
               </div>
 
               <div className="bot-category-list">
@@ -1359,7 +1383,11 @@ export default function ResignGUI() {
                     }}
                   >
                     <div className="bot-showcase-portrait" style={{ background: bot.gradient }}>
-                      <span>{bot.portrait}</span>
+                      {isLogoBot(bot.id) ? (
+                        <img src="/Logo.png" className="brand-logo-image brand-logo-image--portrait" alt={`${bot.name} logo`} />
+                      ) : (
+                        <span>{bot.portrait}</span>
+                      )}
                     </div>
                     <div className="bot-showcase-copy">
                       <strong>{bot.name}</strong>

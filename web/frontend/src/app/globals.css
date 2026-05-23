@@ -87,6 +87,24 @@ body {
   flex-shrink: 0;
 }
 
+.brand-logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.brand-logo-image--pad {
+  padding: 6px;
+}
+
+.brand-logo-image--portrait {
+  width: 64px;
+  height: 64px;
+  margin: 0 0 0 2px;
+  object-fit: contain;
+}
+
 .player-clock {
   background-color: var(--bg-panel-dark);
   padding: 6px 14px;
