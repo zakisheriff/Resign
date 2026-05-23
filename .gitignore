@@ -1,0 +1,9 @@
+*.o
+resign
+movegen_test
+.DS_Store
+Stockfish-master/
+test.in
+run_test.sh
+run_lldb.sh
+compare.py
