@@ -246,6 +246,10 @@ export default function ResignGUI() {
   const [pieceSet, setPieceSet] = useState('neo');
   const [selectedBotId, setSelectedBotId] = useState('resign');
   const [selectedBotCategoryId, setSelectedBotCategoryId] = useState('adaptive');
+  const playerColorRef = useRef<'w' | 'b'>('w');
+  const selectedBotRef = useRef(BOT_PRESETS[0]);
+  const gameStartedRef = useRef(false);
+  const gameModeRef = useRef<'engine' | 'friend'>('engine');
 
   useEffect(() => {
     evalScoreRef.current = evalScore;
@@ -297,6 +301,22 @@ export default function ResignGUI() {
   const [gameMode, setGameMode] = useState<'engine' | 'friend'>('engine');
   // Board orientation: 'white' | 'black'
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
+
+  useEffect(() => {
+    playerColorRef.current = playerColor;
+  }, [playerColor]);
+
+  useEffect(() => {
+    selectedBotRef.current = selectedBot;
+  }, [selectedBot]);
+
+  useEffect(() => {
+    gameStartedRef.current = gameStarted;
+  }, [gameStarted]);
+
+  useEffect(() => {
+    gameModeRef.current = gameMode;
+  }, [gameMode]);
 
   // Chess.com pieces — wrapped in SVG for intrinsic dimensions
   const pieceRenderer = useMemo<Record<string, (props?: any) => React.JSX.Element>>(() => {
@@ -397,19 +417,18 @@ export default function ResignGUI() {
       if (forEngineMove) {
         engineThinking.current = true;
         setStatusText('RESIGN is thinking...');
-        ws.current.send(`go movetime ${selectedBot.moveTimeMs}`);
+        ws.current.send(`go movetime ${selectedBotRef.current.moveTimeMs}`);
         engineMoveRetryTimeoutRef.current = setTimeout(() => {
-          searchInFlightRef.current = false;
           setStatusText('Engine reconnecting...');
           analyzePosition(gameRef.current.fen(), true);
-        }, Math.max(selectedBot.moveTimeMs + 2500, 4000));
+        }, Math.max(selectedBotRef.current.moveTimeMs + 2500, 4000));
       } else {
         engineThinking.current = false;
         const turn = gameRef.current.turn();
-        setStatusText(turn === playerColor ? 'Your turn' : 'RESIGN is thinking...');
+        setStatusText(turn === playerColorRef.current ? 'Your turn' : 'RESIGN is thinking...');
       }
     }
-  }, [playerColor, selectedBot]);
+  }, []);
 
   const isLegalEngineMove = useCallback((uciMove: string) => {
     if (uciMove.length < 4) return false;
@@ -501,7 +520,7 @@ export default function ResignGUI() {
       socket.send('isready');
       socket.send('setoption name Threads value 1');
 
-      if (gameStarted && gameMode === 'engine' && engineThinking.current) {
+      if (gameStartedRef.current && gameModeRef.current === 'engine' && engineThinking.current) {
         setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
       }
     };
@@ -628,7 +647,7 @@ export default function ResignGUI() {
       }
       socket.close();
     };
-  }, [playerColor, analyzePosition, updateMoveEvaluations, isLegalEngineMove, gameStarted, gameMode]);
+  }, [analyzePosition, updateMoveEvaluations, isLegalEngineMove]);
 
   // ===== Game end detection =====
   function endGame(result: string, sub: string) {
