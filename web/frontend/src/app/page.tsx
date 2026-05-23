@@ -275,6 +275,7 @@ export default function ResignGUI() {
   const [pieceSet, setPieceSet] = useState('neo');
   const [selectedBotId, setSelectedBotId] = useState('resign');
   const [selectedBotCategoryId, setSelectedBotCategoryId] = useState('adaptive');
+  const [draggedSquare, setDraggedSquare] = useState<string | null>(null);
   const playerColorRef = useRef<'w' | 'b'>('w');
   const selectedBotRef = useRef(BOT_PRESETS[0]);
   const gameStartedRef = useRef(false);
@@ -300,6 +301,20 @@ export default function ResignGUI() {
     document.addEventListener('mousedown', handleGlobalClick);
     return () => {
       document.removeEventListener('mousedown', handleGlobalClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    const clearDraggedSquare = () => {
+      setDraggedSquare(null);
+    };
+
+    document.addEventListener('mouseup', clearDraggedSquare);
+    document.addEventListener('touchend', clearDraggedSquare);
+
+    return () => {
+      document.removeEventListener('mouseup', clearDraggedSquare);
+      document.removeEventListener('touchend', clearDraggedSquare);
     };
   }, []);
 
@@ -927,6 +942,8 @@ export default function ResignGUI() {
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
     if (!square || !gameStarted || isPaused || pendingPromotion) return;
 
+    setDraggedSquare(square);
+
     const turn = gameRef.current.turn();
     const isPlayerTurn = gameMode === 'engine' ? turn === playerColor : true;
 
@@ -978,6 +995,7 @@ export default function ResignGUI() {
   }, [gameStarted, playerColor, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
+    setDraggedSquare(null);
     if (!gameStarted || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
 
     const turn = gameRef.current.turn();
@@ -1086,6 +1104,7 @@ export default function ResignGUI() {
   }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) => {
+    setDraggedSquare(null);
     if (!gameStarted || !targetSquare || pendingPromotion) return false;
 
     const turn = gameRef.current.turn();
@@ -1136,6 +1155,7 @@ export default function ResignGUI() {
   }, [gameStarted, playerColor, evalScore, moveHistory, gameMode, pendingPromotion, getPlayerPseudoLegalMoves]);
 
   const handleRightClickSquare = useCallback(() => {
+    setDraggedSquare(null);
     setPreMove(null);
   }, []);
 
@@ -1356,7 +1376,7 @@ export default function ResignGUI() {
 
     return (
       <div style={finalStyle}>
-        {children}
+        {draggedSquare === square ? null : children}
         {badge && (
           <div
             style={{
@@ -1386,7 +1406,7 @@ export default function ResignGUI() {
         )}
       </div>
     );
-  }, [boardThemeIdx, boardSquareStyles, panelTab, reviewIndex, moveHistory]);
+  }, [boardThemeIdx, boardSquareStyles, draggedSquare, panelTab, reviewIndex, moveHistory]);
 
   return (
     <main className="chess-layout">
