@@ -198,23 +198,45 @@ int SearchThread::quiescence(Position& pos, int alpha, int beta, int ply) {
         if (alpha < stand_pat) alpha = stand_pat;
     }
     
-    MovePicker picker(pos, Move()); // Quiescence picker
-    Move m;
     int best_score = -VALUE_INFINITE;
     
-    while ((m = picker.next_move()).is_ok()) {
-        if (!pos.is_legal(m)) continue;
-        
-        StateInfo st;
-        pos.do_move(m, st);
-        int score = -quiescence(pos, -beta, -alpha, ply + 1);
-        pos.undo_move(m);
-        
-        if (score > best_score) {
-            best_score = score;
-            if (score > alpha) {
-                alpha = score;
-                if (score >= beta) return beta;
+    if (in_check) {
+        MoveList list;
+        generate_all(pos, list);
+        for (int i = 0; i < list.size(); i++) {
+            Move m = list.moves[i];
+            if (!pos.is_legal(m)) continue;
+            
+            StateInfo st;
+            pos.do_move(m, st);
+            int score = -quiescence(pos, -beta, -alpha, ply + 1);
+            pos.undo_move(m);
+            
+            if (score > best_score) {
+                best_score = score;
+                if (score > alpha) {
+                    alpha = score;
+                    if (score >= beta) return beta;
+                }
+            }
+        }
+    } else {
+        MovePicker picker(pos, Move()); // Quiescence picker
+        Move m;
+        while ((m = picker.next_move()).is_ok()) {
+            if (!pos.is_legal(m)) continue;
+            
+            StateInfo st;
+            pos.do_move(m, st);
+            int score = -quiescence(pos, -beta, -alpha, ply + 1);
+            pos.undo_move(m);
+            
+            if (score > best_score) {
+                best_score = score;
+                if (score > alpha) {
+                    alpha = score;
+                    if (score >= beta) return beta;
+                }
             }
         }
     }
@@ -309,11 +331,20 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
         
         bool is_capture = pos.piece_on(m.to()) != NO_PIECE || m.type() == EN_PASSANT;
         
-        // Futility Pruning
-        if (depth == 1 && !in_check && !is_capture && m.type() != PROMOTION && best_score > -VALUE_MATE + MAX_PLY) {
-            int fp_margin = 300; // Minor piece approx
+        // Futility Pruning (scaled up to depth 2)
+        if (depth <= 2 && !in_check && !is_capture && m.type() != PROMOTION && best_score > -VALUE_MATE + MAX_PLY) {
+            int fp_margin = 150 * depth;
             if (eval + fp_margin <= alpha) {
                 continue; // Skip quiet moves if hopelessly behind
+            }
+        }
+        
+        int extension = 0;
+        // Pawn push to 7th rank extension (rank 6 for white, rank 1 for black)
+        if (type_of_piece(pos.piece_on(m.from())) == PAWN) {
+            int to_rank = m.to() / 8;
+            if ((pos.side_to_move() == WHITE && to_rank == 6) || (pos.side_to_move() == BLACK && to_rank == 1)) {
+                extension = 1;
             }
         }
         
@@ -328,29 +359,37 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
         
         // PVS & LMR
         if (moves_searched == 1) {
-            score = -alpha_beta(pos, depth - 1, -beta, -alpha, ply + 1, true);
+            score = -alpha_beta(pos, depth - 1 + extension, -beta, -alpha, ply + 1, true);
         } else {
             int r = 0;
             // Late Move Reductions (LMR)
             if (depth >= 3 && moves_searched >= 3 && !in_check && !is_capture && m.type() != PROMOTION) {
-                r = static_cast<int>(0.5 + std::log(depth) * std::log(moves_searched) / 1.95);
-                
-                // Adjust reduction based on history
-                int hist = history_table[pos.side_to_move()][m.from()][m.to()];
-                if (hist > 10000) r = std::max(0, r - 1);
-                else if (hist < -10000) r += 1;
-                
-                r = std::clamp(r, 0, depth - 1);
+                bool is_killer = (m == killer_table[ply][0] || m == killer_table[ply][1]);
+                if (is_killer) {
+                    r = 0;
+                } else {
+                    r = static_cast<int>(0.5 + std::log(depth) * std::log(moves_searched) / 1.95);
+                    
+                    // Adjust reduction based on history
+                    int hist = history_table[pos.side_to_move()][m.from()][m.to()];
+                    if (hist > 10000) r = std::max(0, r - 1);
+                    else if (hist < -10000) r += 1;
+                    
+                    r = std::clamp(r, 0, depth - 1);
+                }
             }
             
-            score = -alpha_beta(pos, depth - 1 - r, -alpha - 1, -alpha, ply + 1, true);
-            if (score > alpha && r > 0) {
-                // Re-search without reduction
-                score = -alpha_beta(pos, depth - 1, -alpha - 1, -alpha, ply + 1, true);
+            // If we have a pawn push extension, we don't reduce
+            if (extension > 0) r = 0;
+            
+            score = -alpha_beta(pos, depth - 1 - r + extension, -alpha - 1, -alpha, ply + 1, true);
+            if (score > alpha && (r > 0 || extension > 0)) {
+                // Re-search without reduction/with full extension
+                score = -alpha_beta(pos, depth - 1 + extension, -alpha - 1, -alpha, ply + 1, true);
             }
             if (score > alpha && score < beta) {
                 // Re-search full window
-                score = -alpha_beta(pos, depth - 1, -beta, -alpha, ply + 1, true);
+                score = -alpha_beta(pos, depth - 1 + extension, -beta, -alpha, ply + 1, true);
             }
         }
         
