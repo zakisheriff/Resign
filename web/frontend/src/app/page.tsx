@@ -179,6 +179,9 @@ export default function ResignGUI() {
   });
   const currentSearchFen = useRef<string>('');
   const isEngineTurnRef = useRef<boolean>(false);
+  const currentSearchIsPonderRef = useRef<boolean>(false);
+  const searchInFlightRef = useRef<boolean>(false);
+  const discardNextBestMoveRef = useRef<boolean>(false);
 
   // Game end modal
   const [showEndModal, setShowEndModal] = useState(false);
@@ -289,12 +292,20 @@ export default function ResignGUI() {
   // ===== Engine communication =====
   const analyzePosition = useCallback((fenStr: string, forEngineMove: boolean) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      // If we interrupt a background eval search, UCI engines often emit one last
+      // bestmove for the old position. Discard that stale reply.
+      if (searchInFlightRef.current && currentSearchIsPonderRef.current) {
+        discardNextBestMoveRef.current = true;
+      }
+
       // First, stop any current search
       ws.current.send('stop');
       
       // Update state/refs
       currentSearchFen.current = fenStr;
       isEngineTurnRef.current = forEngineMove;
+      currentSearchIsPonderRef.current = !forEngineMove;
+      searchInFlightRef.current = true;
       
       // Send new position
       ws.current.send(`position fen ${fenStr}`);
@@ -418,6 +429,12 @@ export default function ResignGUI() {
         }
 
         if (line.startsWith('bestmove')) {
+          if (discardNextBestMoveRef.current) {
+            discardNextBestMoveRef.current = false;
+            console.log('Discarded stale bestmove from interrupted ponder search:', line);
+            continue;
+          }
+
           const best = line.split(' ')[1]?.trim();
           if (best && best !== '0000' && best !== '(none)') {
             if (isEngineTurnRef.current) {
@@ -463,11 +480,14 @@ export default function ResignGUI() {
                 }
               } catch (e) {
                 console.error('Engine move failed:', best, e);
+                setStatusText('Engine move failed, retrying...');
+                setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
               }
             } else {
               console.log('Ignored bestmove from pondering search:', best);
             }
           }
+          searchInFlightRef.current = false;
           engineThinking.current = false;
         }
       }
