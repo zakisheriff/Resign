@@ -191,6 +191,7 @@ export default function ResignGUI() {
   const currentSearchIsPonderRef = useRef<boolean>(false);
   const searchInFlightRef = useRef<boolean>(false);
   const discardNextBestMoveRef = useRef<boolean>(false);
+  const socketBufferRef = useRef('');
 
   // Game end modal
   const [showEndModal, setShowEndModal] = useState(false);
@@ -308,7 +309,9 @@ export default function ResignGUI() {
       }
 
       // First, stop any current search
-      ws.current.send('stop');
+      if (searchInFlightRef.current) {
+        ws.current.send('stop');
+      }
       
       // Update state/refs
       currentSearchFen.current = fenStr;
@@ -334,6 +337,22 @@ export default function ResignGUI() {
       }
     }
   }, [playerColor]);
+
+  const isLegalEngineMove = useCallback((uciMove: string) => {
+    if (uciMove.length < 4) return false;
+
+    const from = uciMove.substring(0, 2);
+    const to = uciMove.substring(2, 4);
+    const promotion = uciMove.length >= 5 ? uciMove[4] : undefined;
+    const piece = gameRef.current.get(from as Square);
+
+    if (!piece || piece.color !== gameRef.current.turn()) {
+      return false;
+    }
+
+    const legalMoves = gameRef.current.moves({ square: from as Square, verbose: true }) as Move[];
+    return legalMoves.some((move) => move.to === to && (move.promotion ?? undefined) === promotion);
+  }, []);
 
   const updateMoveEvaluations = useCallback((fenKey: string, score: number) => {
     setMoveHistory(prev => {
@@ -398,14 +417,19 @@ export default function ResignGUI() {
     ws.current = socket;
 
     socket.onopen = () => {
+      socketBufferRef.current = '';
+      searchInFlightRef.current = false;
+      discardNextBestMoveRef.current = false;
       socket.send('uci');
       socket.send('isready');
       socket.send('setoption name Threads value 1');
     };
 
     socket.onmessage = (event) => {
-      const raw = event.data.toString();
-      const lines = raw.split('\n').filter((l: string) => l.trim().length > 0);
+      socketBufferRef.current += event.data.toString();
+      const rawParts = socketBufferRef.current.split('\n');
+      socketBufferRef.current = rawParts.pop() ?? '';
+      const lines = rawParts.map((line) => line.trim()).filter((line) => line.length > 0);
 
       for (const line of lines) {
         if (line.startsWith('info depth')) {
@@ -447,6 +471,11 @@ export default function ResignGUI() {
           const best = line.split(' ')[1]?.trim();
           if (best && best !== '0000' && best !== '(none)') {
             if (isEngineTurnRef.current) {
+              if (!isLegalEngineMove(best)) {
+                console.log('Ignored invalid or stale engine bestmove for current board:', best, gameRef.current.fen());
+                continue;
+              }
+
               try {
                 const prevFen = gameRef.current.fen();
                 const evalBefore = evalMap.current[prevFen] ?? lastEvalRef.current;
@@ -491,6 +520,7 @@ export default function ResignGUI() {
               } catch (e) {
                 console.error('Engine move failed:', best, e);
                 setStatusText('Engine move failed, retrying...');
+                searchInFlightRef.current = false;
                 setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
               }
             } else {
@@ -504,10 +534,14 @@ export default function ResignGUI() {
     };
 
     socket.onerror = (e) => console.error('WebSocket error:', e);
-    socket.onclose = () => console.log('WebSocket closed');
+    socket.onclose = () => {
+      socketBufferRef.current = '';
+      searchInFlightRef.current = false;
+      console.log('WebSocket closed');
+    };
 
     return () => socket.close();
-  }, [playerColor, analyzePosition, updateMoveEvaluations]);
+  }, [playerColor, analyzePosition, updateMoveEvaluations, isLegalEngineMove]);
 
   // ===== Game end detection =====
   function endGame(result: string, sub: string) {
@@ -797,9 +831,13 @@ export default function ResignGUI() {
   // ===== Game start =====
   function resetEngine() {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send('stop');
+      if (searchInFlightRef.current) {
+        ws.current.send('stop');
+      }
       ws.current.send('ucinewgame');
       ws.current.send('isready');
+      searchInFlightRef.current = false;
+      discardNextBestMoveRef.current = false;
     }
   }
 
