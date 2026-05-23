@@ -88,6 +88,41 @@ function getActiveSide(fen: string): 'w' | 'b' {
   return (parts[1] === 'b') ? 'b' : 'w';
 }
 
+function getCpValue(score: number): number {
+  if (score > 10000) return 2000;
+  if (score < -10000) return -2000;
+  return score;
+}
+
+function isDarkSquare(square: string): boolean {
+  const file = square.charCodeAt(0) - 97; // 'a' is 97 -> 0
+  const rank = parseInt(square[1], 10) - 1; // '1' is 0
+  return (file + rank) % 2 === 0;
+}
+
+function getBadgeDetails(classification: MoveClassification) {
+  switch (classification) {
+    case 'brilliant':
+      return { text: '!!', bg: '#12b2a6', fg: '#ffffff' };
+    case 'great':
+      return { text: '!', bg: '#1582b4', fg: '#ffffff' };
+    case 'best':
+      return { text: '✓', bg: '#769632', fg: '#ffffff' };
+    case 'book':
+      return { text: '📖', bg: '#a38463', fg: '#ffffff' };
+    case 'good':
+      return { text: '✓', bg: '#85a947', fg: '#ffffff' };
+    case 'inaccuracy':
+      return { text: '?!', bg: '#f1b427', fg: '#ffffff' };
+    case 'mistake':
+      return { text: '?', bg: '#e58c2a', fg: '#ffffff' };
+    case 'blunder':
+      return { text: '??', bg: '#ca3431', fg: '#ffffff' };
+    default:
+      return null;
+  }
+}
+
 function classifyMove(cpLoss: number, moveIndex: number): MoveClassification {
   if (moveIndex < 6) return 'book';
   if (cpLoss < -50)  return 'brilliant';
@@ -331,14 +366,21 @@ export default function ResignGUI() {
 
   // Eval bar
   const evalPercent = useMemo(() => {
-    if (evalScore <= -9999) return 0;
-    if (evalScore >= 9999) return 100;
+    if (evalScore <= -10000) return 0;
+    if (evalScore >= 10000) return 100;
     const clamped = Math.max(-1000, Math.min(1000, evalScore));
     return 50 + (clamped / 1000) * 50;
   }, [evalScore]);
 
   const evalLabel = useMemo(() => {
-    if (Math.abs(evalScore) >= 9000) return 'M';
+    if (evalScore > 10000) {
+      const moves = 20000 - evalScore;
+      return `M${moves}`;
+    }
+    if (evalScore < -10000) {
+      const moves = 20000 + evalScore;
+      return `M${moves}`;
+    }
     return (Math.abs(evalScore) / 100).toFixed(1);
   }, [evalScore]);
   const checkedKingSquare = useMemo(() => getCheckedKingSquare(fen), [fen]);
@@ -455,8 +497,8 @@ export default function ResignGUI() {
           const evalBefore = evalMap.current[prevFen] ?? 30;
           const evalAfter = score;
           const cpLoss = move.color === 'w'
-            ? Math.max(0, evalBefore - evalAfter)
-            : Math.max(0, evalAfter - evalBefore);
+            ? getCpValue(evalBefore) - getCpValue(evalAfter)
+            : getCpValue(evalAfter) - getCpValue(evalBefore);
           const classification = classifyMove(cpLoss, idx);
 
           if (move.evalAfter !== evalAfter || move.evalBefore !== evalBefore || move.cpLoss !== cpLoss || move.classification !== classification) {
@@ -476,8 +518,8 @@ export default function ResignGUI() {
           const evalBefore = score;
           const evalAfter = nextMove.evalAfter;
           const cpLoss = nextMove.color === 'w'
-            ? Math.max(0, evalBefore - evalAfter)
-            : Math.max(0, evalAfter - evalBefore);
+            ? getCpValue(evalBefore) - getCpValue(evalAfter)
+            : getCpValue(evalAfter) - getCpValue(evalBefore);
           const classification = classifyMove(cpLoss, idx);
 
           if (nextMove.evalBefore !== evalBefore || nextMove.cpLoss !== cpLoss || nextMove.classification !== classification) {
@@ -549,8 +591,12 @@ export default function ResignGUI() {
           if (mateMatch) {
             const moves = parseInt(mateMatch[1], 10);
             const side = getActiveSide(currentSearchFen.current);
-            const scoreVal = moves > 0 ? 9999 : -9999;
-            const fromWhite = side === 'w' ? scoreVal : -scoreVal;
+            let fromWhite = 0;
+            if (moves > 0) {
+              fromWhite = side === 'w' ? (20000 - moves) : (-20000 + moves);
+            } else {
+              fromWhite = side === 'w' ? (-20000 - moves) : (20000 + moves);
+            }
 
             const fenKey = currentSearchFen.current;
             evalMap.current[fenKey] = fromWhite;
@@ -583,8 +629,8 @@ export default function ResignGUI() {
                   const evalAfter = evalScoreRef.current;
                   const movingColor = move.color;
                   const cpLoss = movingColor === 'w'
-                    ? Math.max(0, evalBefore - evalAfter)
-                    : Math.max(0, evalAfter - evalBefore);
+                    ? getCpValue(evalBefore) - getCpValue(evalAfter)
+                    : getCpValue(evalAfter) - getCpValue(evalBefore);
                   const totalMoves = moveHistoryRef.current.length;
                   const newFen = gameRef.current.fen();
 
@@ -742,8 +788,8 @@ export default function ResignGUI() {
     const evalAfter = evalScore; // initial eval, will be updated by the engine search
     const movingColor = move.color;
     const cpLoss = movingColor === 'w'
-      ? Math.max(0, evalBefore - evalAfter)
-      : Math.max(0, evalAfter - evalBefore);
+      ? getCpValue(evalBefore) - getCpValue(evalAfter)
+      : getCpValue(evalAfter) - getCpValue(evalBefore);
 
     const recorded: RecordedMove = {
       moveNumber: Math.floor(totalMoves / 2) + 1,
@@ -1047,7 +1093,7 @@ export default function ResignGUI() {
       counts[m.classification]++;
     }
     for (const m of evaluatedMoves) {
-      totalCpLoss += m.cpLoss;
+      totalCpLoss += Math.max(0, m.cpLoss);
     }
     const accuracy = evaluatedMoves.length > 0
       ? Math.max(0, 100 - (totalCpLoss / evaluatedMoves.length) * 0.5)
@@ -1067,7 +1113,7 @@ export default function ResignGUI() {
       counts[m.classification]++;
     }
     for (const m of evaluatedMoves) {
-      totalCpLoss += m.cpLoss;
+      totalCpLoss += Math.max(0, m.cpLoss);
     }
     const accuracy = evaluatedMoves.length > 0
       ? Math.max(0, 100 - (totalCpLoss / evaluatedMoves.length) * 0.5)
@@ -1079,6 +1125,68 @@ export default function ResignGUI() {
   const tc = TIME_CONTROLS[timeControlIdx];
   const noTimer = tc.seconds === 0;
   const isPlaying = gameStarted && !gameRef.current.isGameOver();
+
+  const renderCustomSquare = useCallback((props: { piece: any; square: string; children?: React.ReactNode }) => {
+    const { children, square } = props;
+    const isDark = isDarkSquare(square);
+    const defaultBg = isDark
+      ? BOARD_THEMES[boardThemeIdx].dark
+      : BOARD_THEMES[boardThemeIdx].light;
+
+    const customStyle = boardSquareStyles[square] || {};
+
+    const finalStyle: React.CSSProperties = {
+      position: 'relative',
+      width: '100%',
+      height: '100%',
+      backgroundColor: defaultBg,
+      ...customStyle,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    };
+
+    let badge = null;
+    if (panelTab === 'review' && reviewIndex >= 0) {
+      const currentMove = moveHistory[reviewIndex];
+      if (currentMove && currentMove.to === square) {
+        badge = getBadgeDetails(currentMove.classification);
+      }
+    }
+
+    return (
+      <div style={finalStyle}>
+        {children}
+        {badge && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '4px',
+              right: '4px',
+              backgroundColor: badge.bg,
+              color: badge.fg,
+              borderRadius: '50%',
+              width: '22px',
+              height: '22px',
+              fontSize: badge.text.length > 1 ? '10px' : '12px',
+              fontWeight: '900',
+              fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              border: '1.5px solid #fff',
+              zIndex: 10,
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {badge.text}
+          </div>
+        )}
+      </div>
+    );
+  }, [boardThemeIdx, boardSquareStyles, panelTab, reviewIndex, moveHistory]);
 
   return (
     <main className="chess-layout">
@@ -1162,6 +1270,7 @@ export default function ResignGUI() {
                 canDragPiece: handleCanDragPiece,
                 onSquareMouseDown: handleSquareClick,
                 onSquareClick: handleSquareClick,
+                squareRenderer: renderCustomSquare,
               }}
             />
           </div>
