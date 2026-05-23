@@ -1150,6 +1150,8 @@ body {
 }
 
 .settings-section h3 {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-weight: 800;
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 10px;
@@ -1174,7 +1176,7 @@ body {
 }
 
 .theme-swatch:hover {
-  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
@@ -1236,8 +1238,8 @@ body {
 }
 
 .piece-set-option:hover {
-  transform: translateY(-2px);
   background: #4b4844;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .piece-set-option.active {

@@ -66,17 +66,10 @@ const PIECE_SETS = [
 
 const BOT_PRESETS = [
   { id: 'resign', category: 'adaptive', name: 'RESIGN', title: 'House Engine', elo: 6767, blurb: 'The homegrown engine. Fast, punchy, and always ready to scrap.', badge: 'R', portrait: 'RS', moveTimeMs: 1000, ponderDepth: 12, gradient: 'linear-gradient(135deg, #7f8f52, #39421f)' },
-  { id: 'stockfish', category: 'adaptive', name: 'Stockfish', title: 'Endgame Monster', elo: 3200, blurb: 'Longest think time. Feels the closest to a top engine boss fight.', badge: 'SF', portrait: 'SF', moveTimeMs: 1600, ponderDepth: 14, gradient: 'linear-gradient(135deg, #6e7a86, #26303b)' },
-  { id: 'magnus', category: 'top-players', name: 'Magnus', title: 'Practical King', elo: 2850, blurb: 'Solid, patient, and happy to squeeze tiny edges forever.', badge: 'M', portrait: 'MG', moveTimeMs: 1250, ponderDepth: 12, gradient: 'linear-gradient(135deg, #c9a56a, #6f4e1d)' },
-  { id: 'hikaru', category: 'top-players', name: 'Hikaru', title: 'Bullet Demon', elo: 2950, blurb: 'Snappy decisions and quick tactical shots.', badge: 'H', portrait: 'HK', moveTimeMs: 700, ponderDepth: 9, gradient: 'linear-gradient(135deg, #b56066, #442038)' },
-  { id: 'gotham', category: 'creators', name: 'Levy Rozman', title: 'Trappy Coach', elo: 2350, blurb: 'Looks for cheeky tactics and fast practical pressure.', badge: 'L', portrait: 'LR', moveTimeMs: 850, ponderDepth: 10, gradient: 'linear-gradient(135deg, #587c9a, #203549)' },
-  { id: 'mrbeast', category: 'creators', name: 'MrBeast', title: 'Chaos Bot', elo: 950, blurb: 'Unpredictable, lighter search, and way more beatable.', badge: 'MB', portrait: 'MB', moveTimeMs: 300, ponderDepth: 6, gradient: 'linear-gradient(135deg, #3cb7d6, #1d4865)' },
 ];
 
 const BOT_CATEGORIES = [
   { id: 'adaptive', name: 'Engines', subtitle: 'Flexible training bots', accent: '#8bc34a', preview: 'AI' },
-  { id: 'creators', name: 'Creators', subtitle: 'Streamer-inspired chaos', accent: '#f59e0b', preview: 'CR' },
-  { id: 'top-players', name: 'Top Players', subtitle: 'Elite practical monsters', accent: '#38bdf8', preview: 'TP' },
 ];
 
 const CLASS_LABELS: Record<MoveClassification, { symbol: React.ReactNode; label: string }> = {
@@ -239,7 +232,7 @@ export default function ResignGUI() {
   const [gameResultSub, setGameResultSub] = useState('');
 
   // Review mode
-  const [panelTab, setPanelTab] = useState<'new' | 'bots' | 'review' | 'settings'>('new');
+  const [panelTab, setPanelTab] = useState<'new' | 'review' | 'settings'>('new');
   const [reviewIndex, setReviewIndex] = useState(-1); // -1 = starting position
 
   // Customization
@@ -1212,9 +1205,6 @@ export default function ResignGUI() {
           <div className={`tab ${panelTab === 'new' ? 'active' : ''}`} onClick={() => { setPanelTab('new'); if (gameStarted) { setFen(gameRef.current.fen()); setReviewIndex(-1); } }}>
             <Play size={16} /> New Game
           </div>
-          <div className={`tab ${panelTab === 'bots' ? 'active' : ''}`} onClick={() => setPanelTab('bots')}>
-            <Cpu size={16} /> Bots
-          </div>
           <div className={`tab ${panelTab === 'settings' ? 'active' : ''}`} onClick={() => setPanelTab('settings')}>
             <Palette size={16} /> Themes
           </div>
@@ -1225,7 +1215,7 @@ export default function ResignGUI() {
             {/* Game Mode Selector */}
             <div className="game-mode-selector">
               <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
-                <Cpu size={14} /> vs Bot
+                <Cpu size={14} /> vs RESIGN
               </button>
               <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
                 <Users size={14} /> Pass & Play
@@ -1245,9 +1235,6 @@ export default function ResignGUI() {
                   <strong>{selectedBot.name}</strong>
                   <span>{selectedBot.title} · {selectedBot.elo}</span>
                 </div>
-                <button className="active-bot-change" type="button" onClick={() => setPanelTab('bots')}>
-                  Change
-                </button>
               </div>
             )}
 
@@ -1340,84 +1327,6 @@ export default function ResignGUI() {
                 ))}
               </div>
             )}
-          </div>
-        ) : panelTab === 'bots' ? (
-          <div className="panel-content">
-            <div className="bots-browser">
-              <div className="bots-hero">
-                <div>
-                  <span className="bots-kicker">Bot Browser</span>
-                  <h3>Choose your opponent</h3>
-                  <p>Browse categories, pick a personality, then jump back to New Game and play.</p>
-                </div>
-                <div className="bots-hero-badge">
-                  {isLogoBot(selectedBot.id) ? (
-                    <img src="/Logo.png" className="brand-logo-image brand-logo-image--pad" alt={`${selectedBot.name} logo`} />
-                  ) : (
-                    selectedBot.badge
-                  )}
-                </div>
-              </div>
-
-              <div className="bot-category-list">
-                {botsByCategory.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    className={`bot-category-card ${selectedBotCategoryId === category.id ? 'active' : ''}`}
-                    onClick={() => setSelectedBotCategoryId(category.id)}
-                    style={{ ['--bot-accent' as string]: category.accent }}
-                  >
-                    <div className="bot-category-avatar">{category.preview}</div>
-                    <div className="bot-category-copy">
-                      <strong>{category.name}</strong>
-                      <span>{category.subtitle}</span>
-                    </div>
-                    <div className="bot-category-count">{category.bots.length} bots</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bot-shelf">
-              <div className="bot-shelf-header">
-                <div>
-                  <h4>{selectedBotCategory.name}</h4>
-                  <p>{selectedBotCategory.subtitle}</p>
-                </div>
-                <span>{selectedBotCategory.bots.length} bots</span>
-              </div>
-
-              <div className="bot-shelf-grid">
-                {selectedBotCategory.bots.map((bot) => (
-                  <button
-                    key={bot.id}
-                    type="button"
-                    className={`bot-showcase-card ${selectedBotId === bot.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedBotId(bot.id);
-                      setSelectedBotCategoryId(bot.category);
-                    }}
-                  >
-                    <div className="bot-showcase-portrait" style={{ background: bot.gradient }}>
-                      {isLogoBot(bot.id) ? (
-                        <img src="/Logo.png" className="brand-logo-image brand-logo-image--portrait" alt={`${bot.name} logo`} />
-                      ) : (
-                        <span>{bot.portrait}</span>
-                      )}
-                    </div>
-                    <div className="bot-showcase-copy">
-                      <strong>{bot.name}</strong>
-                      <span>{bot.title}</span>
-                    </div>
-                    <div className="bot-showcase-footer">
-                      <span>{bot.elo}</span>
-                      <span>{selectedBotId === bot.id ? 'Selected' : 'Play'}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         ) : panelTab === 'review' ? (
           /* Review Tab */
