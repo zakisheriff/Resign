@@ -61,6 +61,7 @@ public:
     
     // --- Draw and Material ---
     bool is_draw(int ply) const;
+    bool is_insufficient_material() const;
     bool has_non_pawn_material(Color c) const;
     
     // --- Piece/Board Accessors ---

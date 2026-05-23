@@ -468,9 +468,35 @@ bool Position::has_non_pawn_material(Color c) const {
     return (pieces(c, KNIGHT) | pieces(c, BISHOP) | pieces(c, ROOK) | pieces(c, QUEEN)) != 0;
 }
 
+bool Position::is_insufficient_material() const {
+    Bitboard occ = pieces();
+    int count = popcount(occ);
+    if (count == 2) return true; // Only kings
+    if (count == 3) {
+        // King + Bishop vs King or King + Knight vs King
+        if (pieces(WHITE, BISHOP) || pieces(BLACK, BISHOP) || pieces(WHITE, KNIGHT) || pieces(BLACK, KNIGHT)) {
+            return true;
+        }
+    }
+    if (count == 4) {
+        // King + Bishop vs King + Bishop (same color bishops)
+        Bitboard w_bishops = pieces(WHITE, BISHOP);
+        Bitboard b_bishops = pieces(BLACK, BISHOP);
+        if (popcount(w_bishops) == 1 && popcount(b_bishops) == 1) {
+            Square w_sq = lsb(w_bishops);
+            Square b_sq = lsb(b_bishops);
+            if (((w_sq / 8 + w_sq % 8) % 2) == ((b_sq / 8 + b_sq % 8) % 2)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 bool Position::is_draw(int ply) const {
     (void)ply;
     if (st->half_move_clock >= 100) return true;
+    if (is_insufficient_material()) return true;
     
     StateInfo* curr = st->previous;
     if (curr) curr = curr->previous; // Start at ply - 2 (same side to move)

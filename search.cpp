@@ -110,7 +110,11 @@ void SearchThread::search() {
     int best_score_root = -VALUE_INFINITE;
 
     // Iterative Deepening
-    for (int d = 1; d <= max_depth; ++d) {
+    int d_start = 1;
+    if (thread_id > 0) {
+        d_start = 1 + (thread_id % 2);
+    }
+    for (int d = d_start; d <= max_depth; ++d) {
         if (stop_search) break;
         
         int alpha = -VALUE_INFINITE;
@@ -118,8 +122,9 @@ void SearchThread::search() {
         
         // Aspiration Windows
         if (d >= 4 && best_score_root != -VALUE_INFINITE) {
-            alpha = std::max(-VALUE_INFINITE, best_score_root - 50);
-            beta  = std::min( VALUE_INFINITE, best_score_root + 50);
+            int margin = 50 + 20 * thread_id;
+            alpha = std::max(-VALUE_INFINITE, best_score_root - margin);
+            beta  = std::min( VALUE_INFINITE, best_score_root + margin);
         }
         
         int score;
@@ -296,6 +301,8 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
     int best_score = -VALUE_INFINITE;
     Move best_move;
     int moves_searched = 0;
+    Move quiet_moves[64];
+    int quiet_count = 0;
     
     while ((m = picker.next_move()).is_ok()) {
         if (!pos.is_legal(m)) continue;
@@ -313,6 +320,9 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
         StateInfo st;
         pos.do_move(m, st);
         moves_searched++;
+        if (!is_capture && m.type() != PROMOTION && quiet_count < 64) {
+            quiet_moves[quiet_count++] = m;
+        }
         
         int score = 0;
         
@@ -322,9 +332,15 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
         } else {
             int r = 0;
             // Late Move Reductions (LMR)
-            if (depth >= 3 && moves_searched >= 4 && !in_check && !is_capture && m.type() != PROMOTION) {
-                r = 1;
-                if (moves_searched >= 8) r = 2;
+            if (depth >= 3 && moves_searched >= 3 && !in_check && !is_capture && m.type() != PROMOTION) {
+                r = static_cast<int>(0.5 + std::log(depth) * std::log(moves_searched) / 1.95);
+                
+                // Adjust reduction based on history
+                int hist = history_table[pos.side_to_move()][m.from()][m.to()];
+                if (hist > 10000) r = std::max(0, r - 1);
+                else if (hist < -10000) r += 1;
+                
+                r = std::clamp(r, 0, depth - 1);
             }
             
             score = -alpha_beta(pos, depth - 1 - r, -alpha - 1, -alpha, ply + 1, true);
@@ -348,6 +364,10 @@ int SearchThread::alpha_beta(Position& pos, int depth, int alpha, int beta, int 
                 if (score >= beta) {
                     if (!is_capture) {
                         update_history(pos.side_to_move(), m, depth * depth);
+                        // Penalize other tried quiet moves (malus)
+                        for (int i = 0; i < quiet_count - 1; ++i) {
+                            update_history(pos.side_to_move(), quiet_moves[i], -depth * depth);
+                        }
                         update_killers(m, ply);
                     }
                     TT.store(pos.key(), TT.score_to_tt(score, ply), depth, BOUND_LOWER, m);
