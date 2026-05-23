@@ -226,11 +226,8 @@ export default function ResignGUI() {
   });
   const currentSearchFen = useRef<string>('');
   const isEngineTurnRef = useRef<boolean>(false);
-  const currentSearchIsPonderRef = useRef<boolean>(false);
   const searchInFlightRef = useRef<boolean>(false);
-  const discardNextBestMoveRef = useRef<boolean>(false);
   const socketBufferRef = useRef('');
-  const engineMoveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Game end modal
   const [showEndModal, setShowEndModal] = useState(false);
@@ -394,40 +391,39 @@ export default function ResignGUI() {
 
   // ===== Engine communication =====
   const analyzePosition = useCallback((fenStr: string, forEngineMove: boolean) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      // First, stop any current search
-      if (searchInFlightRef.current) {
-        ws.current.send('stop');
-      }
-
-      if (engineMoveRetryTimeoutRef.current) {
-        clearTimeout(engineMoveRetryTimeoutRef.current);
-        engineMoveRetryTimeoutRef.current = null;
-      }
-      
-      // Update state/refs
+    if (!forEngineMove) {
       currentSearchFen.current = fenStr;
-      isEngineTurnRef.current = forEngineMove;
-      currentSearchIsPonderRef.current = !forEngineMove;
-      searchInFlightRef.current = forEngineMove;
-      
-      // Send new position
-      ws.current.send(`position fen ${fenStr}`);
-      
-      if (forEngineMove) {
-        engineThinking.current = true;
-        setStatusText('RESIGN is thinking...');
-        ws.current.send(`go movetime ${selectedBotRef.current.moveTimeMs}`);
-        engineMoveRetryTimeoutRef.current = setTimeout(() => {
-          setStatusText('Engine reconnecting...');
-          analyzePosition(gameRef.current.fen(), true);
-        }, Math.max(selectedBotRef.current.moveTimeMs + 2500, 4000));
-      } else {
-        engineThinking.current = false;
-        const turn = gameRef.current.turn();
-        setStatusText(turn === playerColorRef.current ? 'Your turn' : 'RESIGN is thinking...');
-      }
+      isEngineTurnRef.current = false;
+      searchInFlightRef.current = false;
+      engineThinking.current = false;
+      const turn = gameRef.current.turn();
+      setStatusText(turn === playerColorRef.current ? 'Your turn' : 'RESIGN is thinking...');
+      return;
     }
+
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    if (
+      searchInFlightRef.current &&
+      isEngineTurnRef.current &&
+      currentSearchFen.current === fenStr
+    ) {
+      return;
+    }
+
+    if (searchInFlightRef.current) {
+      ws.current.send('stop');
+    }
+
+    currentSearchFen.current = fenStr;
+    isEngineTurnRef.current = true;
+    searchInFlightRef.current = true;
+    engineThinking.current = true;
+    setStatusText('RESIGN is thinking...');
+    ws.current.send(`position fen ${fenStr}`);
+    ws.current.send(`go movetime ${selectedBotRef.current.moveTimeMs}`);
   }, []);
 
   const isLegalEngineMove = useCallback((uciMove: string) => {
@@ -511,16 +507,16 @@ export default function ResignGUI() {
     socket.onopen = () => {
       socketBufferRef.current = '';
       searchInFlightRef.current = false;
-      discardNextBestMoveRef.current = false;
-      if (engineMoveRetryTimeoutRef.current) {
-        clearTimeout(engineMoveRetryTimeoutRef.current);
-        engineMoveRetryTimeoutRef.current = null;
-      }
       socket.send('uci');
       socket.send('isready');
       socket.send('setoption name Threads value 1');
 
-      if (gameStartedRef.current && gameModeRef.current === 'engine' && engineThinking.current) {
+      if (
+        gameStartedRef.current &&
+        gameModeRef.current === 'engine' &&
+        engineThinking.current &&
+        gameRef.current.turn() !== playerColorRef.current
+      ) {
         setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
       }
     };
@@ -563,6 +559,9 @@ export default function ResignGUI() {
 
         if (line.startsWith('bestmove')) {
           const best = line.split(' ')[1]?.trim();
+          searchInFlightRef.current = false;
+          engineThinking.current = false;
+
           if (best && best !== '0000' && best !== '(none)') {
             if (isEngineTurnRef.current) {
               if (!isLegalEngineMove(best)) {
@@ -614,17 +613,10 @@ export default function ResignGUI() {
               } catch (e) {
                 console.error('Engine move failed:', best, e);
                 setStatusText('Engine move failed, retrying...');
-                searchInFlightRef.current = false;
                 setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
               }
             }
           }
-          if (engineMoveRetryTimeoutRef.current) {
-            clearTimeout(engineMoveRetryTimeoutRef.current);
-            engineMoveRetryTimeoutRef.current = null;
-          }
-          searchInFlightRef.current = false;
-          engineThinking.current = false;
         }
       }
     };
@@ -633,18 +625,10 @@ export default function ResignGUI() {
     socket.onclose = () => {
       socketBufferRef.current = '';
       searchInFlightRef.current = false;
-      if (engineMoveRetryTimeoutRef.current) {
-        clearTimeout(engineMoveRetryTimeoutRef.current);
-        engineMoveRetryTimeoutRef.current = null;
-      }
       console.log('WebSocket closed');
     };
 
     return () => {
-      if (engineMoveRetryTimeoutRef.current) {
-        clearTimeout(engineMoveRetryTimeoutRef.current);
-        engineMoveRetryTimeoutRef.current = null;
-      }
       socket.close();
     };
   }, [analyzePosition, updateMoveEvaluations, isLegalEngineMove]);
@@ -971,11 +955,6 @@ export default function ResignGUI() {
       ws.current.send('ucinewgame');
       ws.current.send('isready');
       searchInFlightRef.current = false;
-      discardNextBestMoveRef.current = false;
-    }
-    if (engineMoveRetryTimeoutRef.current) {
-      clearTimeout(engineMoveRetryTimeoutRef.current);
-      engineMoveRetryTimeoutRef.current = null;
     }
   }
 
