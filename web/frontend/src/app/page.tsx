@@ -64,6 +64,15 @@ const PIECE_SETS = [
   { name: 'Neo Wood', id: 'neo_wood' },
 ];
 
+const BOT_PRESETS = [
+  { id: 'resign', name: 'RESIGN', title: 'House Engine', elo: 676, blurb: 'The homegrown engine. Fast, punchy, and always ready to scrap.', badge: 'R', moveTimeMs: 1000, ponderDepth: 12 },
+  { id: 'stockfish', name: 'Stockfish', title: 'Endgame Monster', elo: 3200, blurb: 'Longest think time. Feels the closest to a top engine boss fight.', badge: 'SF', moveTimeMs: 1600, ponderDepth: 14 },
+  { id: 'magnus', name: 'Magnus', title: 'Practical King', elo: 2850, blurb: 'Solid, patient, and happy to squeeze tiny edges forever.', badge: 'M', moveTimeMs: 1250, ponderDepth: 12 },
+  { id: 'gotham', name: 'Levy Rozman', title: 'Trappy Coach', elo: 2350, blurb: 'Looks for cheeky tactics and fast practical pressure.', badge: 'L', moveTimeMs: 850, ponderDepth: 10 },
+  { id: 'hikaru', name: 'Hikaru', title: 'Bullet Demon', elo: 2950, blurb: 'Snappy decisions and quick tactical shots.', badge: 'H', moveTimeMs: 700, ponderDepth: 9 },
+  { id: 'mrbeast', name: 'MrBeast', title: 'Chaos Bot', elo: 950, blurb: 'Unpredictable, lighter search, and way more beatable.', badge: 'MB', moveTimeMs: 300, ponderDepth: 6 },
+];
+
 const CLASS_LABELS: Record<MoveClassification, { symbol: React.ReactNode; label: string }> = {
   brilliant:   { symbol: <Sparkles size={12}/>, label: 'Brilliant' },
   great:       { symbol: <ThumbsUp size={12}/>,  label: 'Great' },
@@ -153,6 +162,29 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function getCheckedKingSquare(fen: string): string | null {
+  try {
+    const chess = new Chess(fen);
+    if (!chess.isCheck()) return null;
+
+    const sideToMove = chess.turn();
+    const board = chess.board();
+
+    for (let rank = 0; rank < board.length; rank++) {
+      for (let file = 0; file < board[rank].length; file++) {
+        const piece = board[rank][file];
+        if (piece && piece.type === 'k' && piece.color === sideToMove) {
+          return `${'abcdefgh'[file]}${8 - rank}`;
+        }
+      }
+    }
+  } catch (_error) {
+    return null;
+  }
+
+  return null;
+}
+
 // ===== Component =====
 export default function ResignGUI() {
   const gameRef = useRef(new Chess());
@@ -199,12 +231,13 @@ export default function ResignGUI() {
   const [gameResultSub, setGameResultSub] = useState('');
 
   // Review mode
-  const [panelTab, setPanelTab] = useState<'new' | 'review' | 'settings'>('new');
+  const [panelTab, setPanelTab] = useState<'new' | 'bots' | 'review' | 'settings'>('new');
   const [reviewIndex, setReviewIndex] = useState(-1); // -1 = starting position
 
   // Customization
   const [boardThemeIdx, setBoardThemeIdx] = useState(0);
   const [pieceSet, setPieceSet] = useState('neo');
+  const [selectedBotId, setSelectedBotId] = useState('resign');
 
   useEffect(() => {
     evalScoreRef.current = evalScore;
@@ -213,6 +246,11 @@ export default function ResignGUI() {
   useEffect(() => {
     moveHistoryRef.current = moveHistory;
   }, [moveHistory]);
+
+  const selectedBot = useMemo(
+    () => BOT_PRESETS.find((bot) => bot.id === selectedBotId) ?? BOT_PRESETS[0],
+    [selectedBotId]
+  );
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('boardThemeIdx');
@@ -263,6 +301,20 @@ export default function ResignGUI() {
   }, [evalScore]);
 
   const evalLabel = useMemo(() => (Math.abs(evalScore) / 100).toFixed(1), [evalScore]);
+  const checkedKingSquare = useMemo(() => getCheckedKingSquare(fen), [fen]);
+  const boardSquareStyles = useMemo(() => {
+    const merged: Record<string, React.CSSProperties> = { ...legalMoveSquares };
+
+    if (checkedKingSquare) {
+      merged[checkedKingSquare] = {
+        ...(merged[checkedKingSquare] ?? {}),
+        background: 'rgba(220, 38, 38, 0.55)',
+        boxShadow: 'inset 0 0 0 3px rgba(127, 29, 29, 0.75)',
+      };
+    }
+
+    return merged;
+  }, [legalMoveSquares, checkedKingSquare]);
 
   // ===== Timer logic =====
   const startTimer = useCallback(() => {
@@ -326,17 +378,17 @@ export default function ResignGUI() {
         engineThinking.current = true;
         setStatusText('RESIGN is thinking...');
         // Let engine search with moderate depth/time
-        ws.current.send('go movetime 1000');
+        ws.current.send(`go movetime ${selectedBot.moveTimeMs}`);
       } else {
         // Just ponder/evaluate the position while player is thinking
         engineThinking.current = false;
         const turn = gameRef.current.turn();
         setStatusText(turn === playerColor ? 'Your turn' : 'RESIGN is thinking...');
         // Search slightly deeper for evaluation
-        ws.current.send('go depth 12');
+        ws.current.send(`go depth ${selectedBot.ponderDepth}`);
       }
     }
-  }, [playerColor]);
+  }, [playerColor, selectedBot]);
 
   const isLegalEngineMove = useCallback((uciMove: string) => {
     if (uciMove.length < 4) return false;
@@ -565,7 +617,11 @@ export default function ResignGUI() {
     } else if (g.isThreefoldRepetition()) {
       endGame('Draw', 'by repetition');
     } else if (g.isCheck()) {
-      setStatusText(g.turn() === 'w' ? 'White is in check!' : 'Black is in check!');
+      if (gameMode === 'engine') {
+        setStatusText(g.turn() === playerColor ? 'Your king is in check. Move the king or defend it.' : 'RESIGN is in check.');
+      } else {
+        setStatusText(g.turn() === 'w' ? 'White king is in check. Move the king or defend it.' : 'Black king is in check. Move the king or defend it.');
+      }
     }
   }
 
@@ -585,6 +641,14 @@ export default function ResignGUI() {
     }
     highlights[square] = { background: 'rgba(255, 255, 0, 0.4)' };
     return highlights;
+  }
+
+  function getCheckWarningText() {
+    if (gameMode === 'engine') {
+      return 'Your king is in check. Move the king or defend it.';
+    }
+
+    return `${gameRef.current.turn() === 'w' ? 'White' : 'Black'} king is in check. Move the king or defend it.`;
   }
 
   function isPromotionMove(from: string, to: string) {
@@ -674,7 +738,13 @@ export default function ResignGUI() {
     if (gameMode === 'engine' && gameRef.current.turn() !== playerColor) return;
     setSelectedSquare(null);
     const moves = gameRef.current.moves({ square: square as Square, verbose: true });
-    if (moves.length === 0) { setLegalMoveSquares({}); return; }
+    if (moves.length === 0) {
+      setLegalMoveSquares({});
+      if (gameRef.current.isCheck()) {
+        setStatusText(getCheckWarningText());
+      }
+      return;
+    }
     const highlights: Record<string, React.CSSProperties> = {};
     for (const move of moves) {
       const isCapture = gameRef.current.get(move.to as Square);
@@ -717,6 +787,13 @@ export default function ResignGUI() {
     if (clickedPiece && clickedPiece.color === gameRef.current.turn()) {
       setSelectedSquare(square);
       const moves = gameRef.current.moves({ square: square as Square, verbose: true });
+      if (moves.length === 0) {
+        setLegalMoveSquares({});
+        if (gameRef.current.isCheck()) {
+          setStatusText(getCheckWarningText());
+        }
+        return;
+      }
       const highlights: Record<string, React.CSSProperties> = {};
       for (const move of moves) {
         const isCapture = gameRef.current.get(move.to as Square);
@@ -732,6 +809,9 @@ export default function ResignGUI() {
     } else {
       setSelectedSquare(null);
       setLegalMoveSquares({});
+      if (gameRef.current.isCheck()) {
+        setStatusText(getCheckWarningText());
+      }
     }
   }, [gameStarted, selectedSquare, playerColor, evalScore, moveHistory, gameMode, isPaused, pendingPromotion]);
 
@@ -963,12 +1043,12 @@ export default function ResignGUI() {
               <div className="player-profile">
                 <div className="player-avatar">
                   {gameMode === 'engine' ? (
-                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', color: '#aaa' }}>R</div>
+                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
                   ) : (
                     <img src="https://ui-avatars.com/api/?name=B&background=333&color=fff&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
                   )}
                 </div>
-                <span>{gameMode === 'engine' ? 'RESIGN v1.0 ' : 'Friend (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(Engine)' : ''}</span></span>
+                <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'b' ? 'active-clock' : ''} ${blackTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(blackTime)}
@@ -980,12 +1060,12 @@ export default function ResignGUI() {
               <div className="player-profile">
                 <div className="player-avatar">
                   {gameMode === 'engine' ? (
-                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', color: '#aaa' }}>R</div>
+                    <div style={{ width: '100%', height: '100%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 'bold', color: '#aaa' }}>{selectedBot.badge}</div>
                   ) : (
                     <img src="https://ui-avatars.com/api/?name=W&background=eee&color=000&bold=true&size=64" style={{ width: '100%', height: '100%' }} alt="avatar" />
                   )}
                 </div>
-                <span>{gameMode === 'engine' ? 'RESIGN v1.0 ' : 'Friend (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(Engine)' : ''}</span></span>
+                <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'w' ? 'active-clock' : ''} ${whiteTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(whiteTime)}
@@ -1009,10 +1089,10 @@ export default function ResignGUI() {
                 boardOrientation: boardOrientation,
                 darkSquareStyle: { backgroundColor: BOARD_THEMES[boardThemeIdx].dark },
                 lightSquareStyle: { backgroundColor: BOARD_THEMES[boardThemeIdx].light },
-                squareStyles: legalMoveSquares,
+                squareStyles: boardSquareStyles,
                 draggingPieceGhostStyle: { opacity: 0 },
                 showNotation: true,
-                allowDragging: gameStarted && !engineThinking.current && panelTab !== 'review' && !isPaused,
+                allowDragging: gameStarted && !engineThinking.current && !isPaused,
                 animationDurationInMs: 200,
                 onPieceDrop: handlePieceDrop,
                 onPieceDrag: handlePieceDrag,
@@ -1061,8 +1141,8 @@ export default function ResignGUI() {
           <div className={`tab ${panelTab === 'new' ? 'active' : ''}`} onClick={() => { setPanelTab('new'); if (gameStarted) { setFen(gameRef.current.fen()); setReviewIndex(-1); } }}>
             <Play size={16} /> New Game
           </div>
-          <div className={`tab ${panelTab === 'review' ? 'active' : ''}`} onClick={() => { if (moveHistory.length > 0) { setPanelTab('review'); setReviewIndex(moveHistory.length - 1); goToMove(moveHistory.length - 1); } }}>
-            <Eye size={16} /> Review
+          <div className={`tab ${panelTab === 'bots' ? 'active' : ''}`} onClick={() => setPanelTab('bots')}>
+            <Cpu size={16} /> Bots
           </div>
           <div className={`tab ${panelTab === 'settings' ? 'active' : ''}`} onClick={() => setPanelTab('settings')}>
             <Palette size={16} /> Themes
@@ -1074,12 +1154,25 @@ export default function ResignGUI() {
             {/* Game Mode Selector */}
             <div className="game-mode-selector">
               <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
-                <Cpu size={14} /> vs RESIGN
+                <Cpu size={14} /> vs Bot
               </button>
               <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
                 <Users size={14} /> Pass & Play
               </button>
             </div>
+
+            {gameMode === 'engine' && (
+              <div className="active-bot-card">
+                <div className="active-bot-badge">{selectedBot.badge}</div>
+                <div className="active-bot-copy">
+                  <strong>{selectedBot.name}</strong>
+                  <span>{selectedBot.title} · {selectedBot.elo}</span>
+                </div>
+                <button className="active-bot-change" type="button" onClick={() => setPanelTab('bots')}>
+                  Change
+                </button>
+              </div>
+            )}
 
             {/* Time control */}
             <div style={{ position: 'relative' }}>
@@ -1170,6 +1263,33 @@ export default function ResignGUI() {
                 ))}
               </div>
             )}
+          </div>
+        ) : panelTab === 'bots' ? (
+          <div className="panel-content">
+            <div className="bots-header">
+              <h3>Choose A Bot</h3>
+              <p>Pick a personality, then start a game from the New Game tab.</p>
+            </div>
+            <div className="bot-list">
+              {BOT_PRESETS.map((bot) => (
+                <button
+                  key={bot.id}
+                  type="button"
+                  className={`bot-card ${selectedBotId === bot.id ? 'active' : ''}`}
+                  onClick={() => setSelectedBotId(bot.id)}
+                >
+                  <div className="bot-card-top">
+                    <div className="bot-badge">{bot.badge}</div>
+                    <div className="bot-meta">
+                      <strong>{bot.name}</strong>
+                      <span>{bot.title}</span>
+                    </div>
+                    <div className="bot-elo">{bot.elo}</div>
+                  </div>
+                  <p>{bot.blurb}</p>
+                </button>
+              ))}
+            </div>
           </div>
         ) : panelTab === 'review' ? (
           /* Review Tab */
