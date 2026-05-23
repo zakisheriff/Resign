@@ -230,6 +230,7 @@ export default function ResignGUI() {
   const searchInFlightRef = useRef<boolean>(false);
   const discardNextBestMoveRef = useRef<boolean>(false);
   const socketBufferRef = useRef('');
+  const engineMoveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Game end modal
   const [showEndModal, setShowEndModal] = useState(false);
@@ -374,22 +375,21 @@ export default function ResignGUI() {
   // ===== Engine communication =====
   const analyzePosition = useCallback((fenStr: string, forEngineMove: boolean) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      // If we interrupt a background eval search, UCI engines often emit one last
-      // bestmove for the old position. Discard that stale reply.
-      if (searchInFlightRef.current && currentSearchIsPonderRef.current) {
-        discardNextBestMoveRef.current = true;
-      }
-
       // First, stop any current search
       if (searchInFlightRef.current) {
         ws.current.send('stop');
+      }
+
+      if (engineMoveRetryTimeoutRef.current) {
+        clearTimeout(engineMoveRetryTimeoutRef.current);
+        engineMoveRetryTimeoutRef.current = null;
       }
       
       // Update state/refs
       currentSearchFen.current = fenStr;
       isEngineTurnRef.current = forEngineMove;
       currentSearchIsPonderRef.current = !forEngineMove;
-      searchInFlightRef.current = true;
+      searchInFlightRef.current = forEngineMove;
       
       // Send new position
       ws.current.send(`position fen ${fenStr}`);
@@ -397,15 +397,16 @@ export default function ResignGUI() {
       if (forEngineMove) {
         engineThinking.current = true;
         setStatusText('RESIGN is thinking...');
-        // Let engine search with moderate depth/time
         ws.current.send(`go movetime ${selectedBot.moveTimeMs}`);
+        engineMoveRetryTimeoutRef.current = setTimeout(() => {
+          searchInFlightRef.current = false;
+          setStatusText('Engine reconnecting...');
+          analyzePosition(gameRef.current.fen(), true);
+        }, Math.max(selectedBot.moveTimeMs + 2500, 4000));
       } else {
-        // Just ponder/evaluate the position while player is thinking
         engineThinking.current = false;
         const turn = gameRef.current.turn();
         setStatusText(turn === playerColor ? 'Your turn' : 'RESIGN is thinking...');
-        // Search slightly deeper for evaluation
-        ws.current.send(`go depth ${selectedBot.ponderDepth}`);
       }
     }
   }, [playerColor, selectedBot]);
@@ -492,9 +493,17 @@ export default function ResignGUI() {
       socketBufferRef.current = '';
       searchInFlightRef.current = false;
       discardNextBestMoveRef.current = false;
+      if (engineMoveRetryTimeoutRef.current) {
+        clearTimeout(engineMoveRetryTimeoutRef.current);
+        engineMoveRetryTimeoutRef.current = null;
+      }
       socket.send('uci');
       socket.send('isready');
       socket.send('setoption name Threads value 1');
+
+      if (gameStarted && gameMode === 'engine' && engineThinking.current) {
+        setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
+      }
     };
 
     socket.onmessage = (event) => {
@@ -534,12 +543,6 @@ export default function ResignGUI() {
         }
 
         if (line.startsWith('bestmove')) {
-          if (discardNextBestMoveRef.current) {
-            discardNextBestMoveRef.current = false;
-            console.log('Discarded stale bestmove from interrupted ponder search:', line);
-            continue;
-          }
-
           const best = line.split(' ')[1]?.trim();
           if (best && best !== '0000' && best !== '(none)') {
             if (isEngineTurnRef.current) {
@@ -595,9 +598,11 @@ export default function ResignGUI() {
                 searchInFlightRef.current = false;
                 setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
               }
-            } else {
-              console.log('Ignored bestmove from pondering search:', best);
             }
+          }
+          if (engineMoveRetryTimeoutRef.current) {
+            clearTimeout(engineMoveRetryTimeoutRef.current);
+            engineMoveRetryTimeoutRef.current = null;
           }
           searchInFlightRef.current = false;
           engineThinking.current = false;
@@ -609,11 +614,21 @@ export default function ResignGUI() {
     socket.onclose = () => {
       socketBufferRef.current = '';
       searchInFlightRef.current = false;
+      if (engineMoveRetryTimeoutRef.current) {
+        clearTimeout(engineMoveRetryTimeoutRef.current);
+        engineMoveRetryTimeoutRef.current = null;
+      }
       console.log('WebSocket closed');
     };
 
-    return () => socket.close();
-  }, [playerColor, analyzePosition, updateMoveEvaluations, isLegalEngineMove]);
+    return () => {
+      if (engineMoveRetryTimeoutRef.current) {
+        clearTimeout(engineMoveRetryTimeoutRef.current);
+        engineMoveRetryTimeoutRef.current = null;
+      }
+      socket.close();
+    };
+  }, [playerColor, analyzePosition, updateMoveEvaluations, isLegalEngineMove, gameStarted, gameMode]);
 
   // ===== Game end detection =====
   function endGame(result: string, sub: string) {
@@ -939,6 +954,10 @@ export default function ResignGUI() {
       searchInFlightRef.current = false;
       discardNextBestMoveRef.current = false;
     }
+    if (engineMoveRetryTimeoutRef.current) {
+      clearTimeout(engineMoveRetryTimeoutRef.current);
+      engineMoveRetryTimeoutRef.current = null;
+    }
   }
 
   const startGame = useCallback((asColor: 'w' | 'b', mode: 'engine' | 'friend' = 'engine') => {
@@ -973,14 +992,12 @@ export default function ResignGUI() {
     if (mode === 'engine') {
       if (asColor === 'w') {
         setStatusText('Your turn');
-        setTimeout(() => analyzePosition(gameRef.current.fen(), false), 200);
       } else {
         setStatusText('RESIGN is thinking...');
         setTimeout(() => analyzePosition(gameRef.current.fen(), true), 200);
       }
     } else {
       setStatusText("White's turn");
-      setTimeout(() => analyzePosition(gameRef.current.fen(), false), 200);
     }
   }, [timeControlIdx, analyzePosition]);
   useEffect(() => {
