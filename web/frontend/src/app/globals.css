@@ -156,6 +156,8 @@ body {
   min-height: 0;
   min-width: 0;
   margin: 0 auto;
+  overflow: hidden;
+  border-radius: 18px;
 }
 
 /* Eval Bar */
@@ -205,7 +207,7 @@ body {
 /* ===== Right Panel ===== */
 .panel {
   background: var(--bg-panel);
-  border-radius: 18px;
+  border-radius: 30px;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 32px);
@@ -884,10 +886,10 @@ body {
   }
 
   .board-container {
-    border-radius: 0;
+    border-radius: 0 18px 18px 0;
   }
 
-  .eval-bar { border-radius: 0; }
+  .eval-bar { border-radius: 18px 0 0 18px; }
   .player-info { padding: 6px 8px; max-width: none; }
 
   .panel {
@@ -914,13 +916,14 @@ body {
     width: min(calc(100vw - 6px), var(--board-max));
     max-height: none;
     max-width: 100vw;
+    border-radius: 18px;
   }
 
   .board-container {
     flex: none;
     height: var(--board-max);
     width: 100%;
-    border-radius: 0;
+    border-radius: 18px 18px 0 0;
   }
 
   .eval-bar {
@@ -1178,7 +1181,7 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   background-color: var(--bg-panel-dark);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 35px;
   padding: 4px;
   gap: 4px;
   margin-bottom: 8px;
@@ -1191,7 +1194,7 @@ body {
   font-size: 13px;
   font-weight: 800;
   padding: 14px 10px;
-  border-radius: 12px;
+  border-radius: 35px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

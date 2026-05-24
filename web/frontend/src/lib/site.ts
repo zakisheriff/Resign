@@ -1,18 +1,18 @@
 export const SITE_URL = "https://resign.theatom.lk";
-export const SITE_NAME = "RESIGN Chess";
-export const SITE_SHORT_NAME = "RESIGN";
-export const SITE_TITLE = "RESIGN Chess Engine - Play Chess Online Against an Unbeatable AI";
-export const SITE_DESCRIPTION = "Challenge RESIGN, a Powerful Chess Engine built to Crush Human Players. Play Chess Online against RESIGN, and rapid, blitz, and pass-and-play modes.";
+export const SITE_NAME = "Resign Chess";
+export const SITE_SHORT_NAME = "Resign";
+export const SITE_TITLE = "Resign Chess Engine - Play Chess Online Against an Unbeatable AI";
+export const SITE_DESCRIPTION = "Challenge Resign, a Powerful Chess Engine built to Crush Human Players. Play Chess Online against Resign, and rapid, blitz, and pass-and-play modes.";
 export const SITE_KEYWORDS = [
   // Brand
-  "RESIGN chess",
-  "RESIGN chess engine",
-  "RESIGN engine",
-  "RESIGN engine atom",
-  "RESIGN chess engine the atom",
-  "The Atom's RESIGN chess engine",
-  "play against RESIGN",
-  "RESIGN AI",
+  "Resign chess",
+  "Resign chess engine",
+  "Resign engine",
+  "Resign engine atom",
+  "Resign chess engine the atom",
+  "The Atom's Resign chess engine",
+  "play against Resign",
+  "Resign AI",
 
   // Core chess searches
   "play chess online",
@@ -39,7 +39,7 @@ export const SITE_KEYWORDS = [
   "chess 1v1",
   "online chess 1v1",
   "beat the chess engine",
-  "can you beat RESIGN",
+  "can you beat Resign",
   "unbeatable chess AI",
   "hard chess bot",
   "difficult chess engine",
@@ -47,7 +47,7 @@ export const SITE_KEYWORDS = [
   "best chess bot",
 
   // Stockfish-related searches
-  "RESIGN vs Stockfish",
+  "Resign vs Stockfish",
   "Stockfish alternative",
   "play Stockfish online",
   "Stockfish challenge",

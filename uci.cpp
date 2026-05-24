@@ -63,7 +63,7 @@ void loop() {
             Threads.stop();
             break;
         } else if (token == "uci") {
-            std::cout << "id name RESIGN" << std::endl;
+            std::cout << "id name Resign" << std::endl;
             std::cout << "id author The Atom" << std::endl;
             std::cout << "option name Hash type spin default 256 min 1 max 131072" << std::endl;
             std::cout << "option name Threads type spin default 1 min 1 max 1024" << std::endl;

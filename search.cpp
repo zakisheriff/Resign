@@ -91,7 +91,7 @@ std::string move_to_uci(Move m) {
 void SearchThread::search() {
     start_time_ms = now_ms();
     
-    // Resume Stockfish process while RESIGN is searching to keep it responsive
+    // Resume Stockfish process while Resign is searching to keep it responsive
     if (thread_id == 0) {
         std::system("pkill -CONT -f stockfish 2>/dev/null");
         std::system("pkill -CONT -f Stockfish 2>/dev/null");

@@ -86,7 +86,7 @@ export default async function OpenGraphImage() {
                 fontWeight: 700,
               }}
             >
-              RESIGN vs Bots
+              Resign vs Bots
             </div>
           </div>
 
@@ -94,7 +94,7 @@ export default async function OpenGraphImage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }}>
               <div style={{ fontSize: 66, lineHeight: 1.05, fontWeight: 900 }}>{SITE_TITLE}</div>
               <div style={{ fontSize: 28, lineHeight: 1.35, color: '#d1d5db' }}>
-                Fast browser chess with RESIGN, themed bots, move review, time controls, and pass-and-play.
+                Fast browser chess with Resign, themed bots, move review, time controls, and pass-and-play.
               </div>
             </div>
 

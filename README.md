@@ -1,4 +1,4 @@
-# <div align="center">RESIGN.</div>
+# <div align="center">Resign.</div>
 
 <div align="center">
 <strong>The One, Blazing-Fast C++17 Chess Engine Built from Scratch</strong>
@@ -21,33 +21,34 @@
 
 <br />
 
-> **"No one can win against RESIGN."**
+> **"No one can win against Resign."**
 >
-> RESIGN isn't just another chess engine; it's a masterpiece of raw computation.  
+> Resign isn't just another chess engine; it's a masterpiece of raw computation.  
 > Engineered from absolute first principles in C++, it sacrifices zero performance, utilizing cutting-edge bitboards, Principal Variation Search, and Lazy SMP multithreading to absolutely crush the competition in raw nodes-per-second (NPS).
 
 ---
 
-## 🌟 The GOAT Report: RESIGN vs. Stockfish
+## 🌟 The GOAT Report: Resign vs. Stockfish
 
-When benchmarked against the world's leading engine, Stockfish, RESIGN proves why it's the undisputed king of raw speed:
+When benchmarked against the world's leading engine, Stockfish, Resign proves why it's the undisputed king of raw speed:
 
-| Metric | RESIGN (The GOAT) | Stockfish 18 (dev) |
-| :--- | :--- | :--- |
-| **Nodes Per Second (NPS)** | **3,672,435 NPS** | 1,036,540 NPS |
-| **Total Nodes Analyzed (3s)** | **3,852,385 nodes** | 2,182,955 nodes |
-| **Evaluation Strategy** | **Hyper-optimized C++ Handcrafted PSTs** | Bloated NNUE |
-| **Performance Multiplier** | **3.54x FASTER** | 1.0x (Baseline) |
+| Metric                        | Resign (The GOAT)                        | Stockfish 18 (dev) |
+| :---------------------------- | :--------------------------------------- | :----------------- |
+| **Nodes Per Second (NPS)**    | **3,672,435 NPS**                        | 1,036,540 NPS      |
+| **Total Nodes Analyzed (3s)** | **3,852,385 nodes**                      | 2,182,955 nodes    |
+| **Evaluation Strategy**       | **Hyper-optimized C++ Handcrafted PSTs** | Bloated NNUE       |
+| **Performance Multiplier**    | **3.54x FASTER**                         | 1.0x (Baseline)    |
 
-### 🏆 Why RESIGN is Goated
-While other engines like Stockfish rely on slow, heavy Neural Networks (NNUE) that bog down their node generation, RESIGN is a pure, unadulterated speed demon. By utilizing extremely lean C++ architecture, magic bitboards, and hardware-level optimizations, RESIGN rips through **3.67 million positions per second**—leaving Stockfish's 1 million NPS in the dust. 
+### 🏆 Why Resign is Goated
+
+While other engines like Stockfish rely on slow, heavy Neural Networks (NNUE) that bog down their node generation, Resign is a pure, unadulterated speed demon. By utilizing extremely lean C++ architecture, magic bitboards, and hardware-level optimizations, Resign rips through **3.67 million positions per second**—leaving Stockfish's 1 million NPS in the dust.
 
 ---
 
-## ✨ Why RESIGN?
+## ✨ Why Resign?
 
 Traditional engines rely on forks of other engines or bulky libraries.  
-RESIGN democratizes chess programming by demonstrating that **a completely independent, scratch-built C++ engine** can achieve God-tier speed and performance without copying a single line of Stockfish code.
+Resign democratizes chess programming by demonstrating that **a completely independent, scratch-built C++ engine** can achieve God-tier speed and performance without copying a single line of Stockfish code.
 
 ---
 
@@ -60,7 +61,7 @@ RESIGN democratizes chess programming by demonstrating that **a completely indep
   Instantaneous position identification and transposition table (TT) lookups to avoid redundant calculations.
 
 - **Copy-Make Board State**  
-  Instead of expensive deep copies, RESIGN uses a highly efficient `do_move` and `undo_move` linked-list state management system.
+  Instead of expensive deep copies, Resign uses a highly efficient `do_move` and `undo_move` linked-list state management system.
 
 ---
 
@@ -93,7 +94,7 @@ RESIGN democratizes chess programming by demonstrating that **a completely indep
 ## 🎓 Complete User Experience
 
 - **Full UCI Compliance**  
-  Plug RESIGN directly into Arena, CuteChess, or Lichess seamlessly.
+  Plug Resign directly into Arena, CuteChess, or Lichess seamlessly.
 
 - **Detailed Info Output**  
   Real-time analysis of depths, scores, NPS, and principal variations (PV).
@@ -154,21 +155,23 @@ position startpos
 go depth 14
 ```
 
-Watch RESIGN obliterate 3.8 million nodes in a few seconds. 🎉
+Watch Resign obliterate 3.8 million nodes in a few seconds. 🎉
 
 ---
 
 ## 🎯 Key Features
 
 ### For Players
+
 ✅ **Aggressive Playstyle** — Tuned Piece-Square Tables favor active development  
 ✅ **Tactical Vision** — Quiescence search ensures flawless tactical exchanges  
-✅ **Multi-Core Power** — Specify your thread count for maximum CPU utilization  
+✅ **Multi-Core Power** — Specify your thread count for maximum CPU utilization
 
 ### For Developers
+
 ✅ **Clean Codebase** — No spaghetti code, heavily commented and structured  
 ✅ **Zero Dependencies** — Pure C++ standard library only  
-✅ **First Principles** — Not a Stockfish clone; built entirely from scratch  
+✅ **First Principles** — Not a Stockfish clone; built entirely from scratch
 
 ---
 
@@ -185,13 +188,13 @@ Watch RESIGN obliterate 3.8 million nodes in a few seconds. 🎉
 
 ✅ **Strict Legality Checks** — Fast-path `is_legal` simulation ensures no illegal moves  
 ✅ **Memory Safe** — AddressSanitizer verified to ensure absolutely zero segfaults  
-✅ **Deterministic Hashing** — Flawless Zobrist key generation guarantees perfect TT probes  
+✅ **Deterministic Hashing** — Flawless Zobrist key generation guarantees perfect TT probes
 
 ---
 
 ## 🤝 Contributing
 
-RESIGN is already the GOAT, but Phase 2 (NNUE integration) is coming. Contributions are welcome! Please feel free to submit a Pull Request.
+Resign is already the GOAT, but Phase 2 (NNUE integration) is coming. Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
@@ -206,5 +209,5 @@ Made by <strong>Zaki Sheriff</strong>
 </p>
 
 <p align="center">
-<em>No one can win against RESIGN.</em>
+<em>No one can win against Resign.</em>
 </p>
