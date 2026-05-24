@@ -1000,6 +1000,18 @@ body {
   }
 
   .panel-content { padding-bottom: 70px; }
+
+  .game-mode-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-tab {
+    min-height: 68px;
+  }
+
+  .btn-duel-launch-copy strong {
+    font-size: 16px;
+  }
 }
 
 /* ===== Coach Analysis Box ===== */
@@ -1162,7 +1174,8 @@ body {
 
 /* ===== Game Mode Switcher ===== */
 .game-mode-selector {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   background-color: var(--bg-panel-dark);
   border: 1px solid var(--border-color);
   border-radius: 16px;
@@ -1172,20 +1185,21 @@ body {
 }
 
 .mode-tab {
-  flex: 1;
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
-  padding: 10px 8px;
+  padding: 12px 10px;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 82px;
+  text-align: left;
 }
 
 .mode-tab.active {
@@ -1197,6 +1211,78 @@ body {
 .mode-tab:hover:not(.active) {
   background-color: rgba(255, 255, 255, 0.02);
   color: #fff;
+}
+
+.mode-tab svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mode-tab-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mode-tab-title {
+  display: block;
+  line-height: 1.15;
+}
+
+.mode-tab-subtitle {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.mode-tab.active .mode-tab-subtitle,
+.mode-tab:hover .mode-tab-subtitle {
+  color: rgba(255,255,255,0.72);
+}
+
+.btn-duel-launch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  text-align: left;
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 28%),
+    linear-gradient(135deg, #93be58, #6d9736);
+  box-shadow: 0 4px 0px #496622;
+}
+
+.btn-duel-launch-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-duel-launch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.btn-duel-launch-copy strong {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.btn-duel-launch-copy span {
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 

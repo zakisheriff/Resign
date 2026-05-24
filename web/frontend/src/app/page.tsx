@@ -1731,13 +1731,25 @@ export default function ResignGUI() {
                 {/* Game Mode Selector */}
                 <div className="game-mode-selector">
                   <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
-                    <Cpu size={14} /> vs RESIGN
+                    <Cpu size={14} />
+                    <span className="mode-tab-copy">
+                      <span className="mode-tab-title">vs RESIGN</span>
+                      <span className="mode-tab-subtitle">Play the house engine</span>
+                    </span>
                   </button>
                   <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
-                    <Users size={14} /> Pass & Play
+                    <Users size={14} />
+                    <span className="mode-tab-copy">
+                      <span className="mode-tab-title">Pass &amp; Play</span>
+                      <span className="mode-tab-subtitle">Two humans, one board</span>
+                    </span>
                   </button>
                   <button className={`mode-tab ${gameMode === 'duel' ? 'active' : ''}`} onClick={() => setGameMode('duel')}>
-                    <Swords size={14} /> RESIGN vs Stockfish
+                    <Swords size={14} />
+                    <span className="mode-tab-copy">
+                      <span className="mode-tab-title">RESIGN vs Stockfish</span>
+                      <span className="mode-tab-subtitle">Watch the engines fight</span>
+                    </span>
                   </button>
                 </div>
 
@@ -1809,8 +1821,12 @@ export default function ResignGUI() {
                     </button>
                   </>
                 ) : gameMode === 'duel' ? (
-                  <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => startGame('w', 'duel')}>
-                    <Swords size={20} /> Watch RESIGN vs Stockfish
+                  <button className="btn-primary btn-duel-launch" onClick={() => startGame('w', 'duel')}>
+                    <span className="btn-duel-launch-icon"><Swords size={20} /></span>
+                    <span className="btn-duel-launch-copy">
+                      <strong>Watch RESIGN vs Stockfish</strong>
+                      <span>Live engine duel</span>
+                    </span>
                   </button>
                 ) : (
                   <>
