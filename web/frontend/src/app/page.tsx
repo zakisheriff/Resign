@@ -35,6 +35,14 @@ interface PendingPromotion {
   color: 'w' | 'b';
 }
 
+interface QueuedPreMove {
+  from: string;
+  to: string;
+  promotion?: string;
+}
+
+type GameMode = 'engine' | 'friend' | 'duel';
+
 const TIME_CONTROLS = [
   { label: '1 min (Bullet)', seconds: 60 },
   { label: '3 min (Blitz)', seconds: 180 },
@@ -279,21 +287,24 @@ export default function ResignGUI() {
   const playerColorRef = useRef<'w' | 'b'>('w');
   const selectedBotRef = useRef(BOT_PRESETS[0]);
   const gameStartedRef = useRef(false);
-  const gameModeRef = useRef<'engine' | 'friend'>('engine');
+  const gameModeRef = useRef<GameMode>('engine');
+  const suppressSquareSelectionUntilRef = useRef(0);
+  const duelActiveRef = useRef(false);
+  const duelBusyRef = useRef(false);
 
-  const [preMove, setPreMove] = useState<{ from: string; to: string; promotion?: string } | null>(null);
-  const preMoveRef = useRef<{ from: string; to: string; promotion?: string } | null>(null);
+  const [preMoves, setPreMoves] = useState<QueuedPreMove[]>([]);
+  const preMovesRef = useRef<QueuedPreMove[]>([]);
 
   useEffect(() => {
-    preMoveRef.current = preMove;
-  }, [preMove]);
+    preMovesRef.current = preMoves;
+  }, [preMoves]);
 
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
-      if (preMoveRef.current) {
+      if (preMovesRef.current.length > 0) {
         const boardContainer = document.querySelector('.board-container');
         if (boardContainer && !boardContainer.contains(e.target as Node)) {
-          setPreMove(null);
+          setPreMoves([]);
         }
       }
     };
@@ -364,8 +375,8 @@ export default function ResignGUI() {
   // Which color the player is
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>('w');
 
-  // Game mode: 'engine' | 'friend'
-  const [gameMode, setGameMode] = useState<'engine' | 'friend'>('engine');
+  // Game mode: 'engine' | 'friend' | 'duel'
+  const [gameMode, setGameMode] = useState<GameMode>('engine');
   // Board orientation: 'white' | 'black'
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
 
@@ -438,19 +449,19 @@ export default function ResignGUI() {
       };
     }
 
-    if (preMove) {
-      merged[preMove.from] = {
+    for (const queuedPreMove of preMoves) {
+      merged[queuedPreMove.from] = {
         background: 'rgba(244, 63, 94, 0.4)',
         boxShadow: 'inset 0 0 0 2px rgba(244, 63, 94, 0.7)',
       };
-      merged[preMove.to] = {
+      merged[queuedPreMove.to] = {
         background: 'rgba(244, 63, 94, 0.4)',
         boxShadow: 'inset 0 0 0 2px rgba(244, 63, 94, 0.7)',
       };
     }
 
     return merged;
-  }, [legalMoveSquares, checkedKingSquare, preMove]);
+  }, [legalMoveSquares, checkedKingSquare, preMoves]);
 
   // ===== Timer logic =====
   const startTimer = useCallback(() => {
@@ -617,6 +628,10 @@ export default function ResignGUI() {
       ) {
         setTimeout(() => analyzePosition(gameRef.current.fen(), true), 150);
       }
+
+      if (gameStartedRef.current && gameModeRef.current === 'duel' && duelActiveRef.current) {
+        setTimeout(() => requestNextDuelMove(), 150);
+      }
     };
 
     socket.onmessage = (event) => {
@@ -626,6 +641,31 @@ export default function ResignGUI() {
       const lines = rawParts.map((line) => line.trim()).filter((line) => line.length > 0);
 
       for (const line of lines) {
+        if (line.startsWith('duelmove ')) {
+          const [, , move] = line.split(/\s+/);
+          duelBusyRef.current = false;
+          if (duelActiveRef.current && move) {
+            recordDuelMove(move);
+          }
+          continue;
+        }
+
+        if (line.startsWith('duelunavailable')) {
+          duelBusyRef.current = false;
+          duelActiveRef.current = false;
+          setGameStarted(false);
+          setStatusText('Stockfish duel is not available on this backend yet.');
+          continue;
+        }
+
+        if (line.startsWith('duelerror ')) {
+          duelBusyRef.current = false;
+          duelActiveRef.current = false;
+          setGameStarted(false);
+          setStatusText(line.replace(/^duelerror\s+/, ''));
+          continue;
+        }
+
         if (line.startsWith('info depth')) {
           setEngineLines(prev => [...prev.slice(-5), line]);
 
@@ -709,23 +749,8 @@ export default function ResignGUI() {
 
                   // After engine makes its move, it is the player's turn. Start pondering!
                   if (!gameRef.current.isGameOver()) {
-                    const currentPreMove = preMoveRef.current;
-                    if (currentPreMove) {
-                      try {
-                        const pm = gameRef.current.move({
-                          from: currentPreMove.from,
-                          to: currentPreMove.to,
-                          promotion: currentPreMove.promotion,
-                        });
-                        if (pm) {
-                          setPreMove(null);
-                          recordPlayerMove(pm);
-                          return;
-                        }
-                      } catch (pmError) {
-                        console.log("Pre-move illegal or failed:", currentPreMove, pmError);
-                      }
-                      setPreMove(null);
+                    if (applyNextQueuedPreMove()) {
+                      return;
                     }
                     analyzePosition(newFen, false);
                   }
@@ -761,7 +786,9 @@ export default function ResignGUI() {
     setGameStarted(false);
     stopTimer();
     engineThinking.current = false;
-    setPreMove(null);
+    duelActiveRef.current = false;
+    duelBusyRef.current = false;
+    setPreMoves([]);
   }
 
   function checkGameEnd() {
@@ -894,6 +921,20 @@ export default function ResignGUI() {
     setLegalMoveSquares({});
   }
 
+  function clearSelectionAndHighlights() {
+    setSelectedSquare(null);
+    setLegalMoveSquares({});
+    setDraggedSquare(null);
+  }
+
+  function suppressNextSquareSelection() {
+    suppressSquareSelectionUntilRef.current = Date.now() + 180;
+  }
+
+  function queuePreMove(move: QueuedPreMove) {
+    setPreMoves((prev) => [...prev, move].slice(-8));
+  }
+
   function recordPlayerMove(move: Move) {
     const prevFen = move.color === 'w' 
       ? gameRef.current.fen().replace(' b ', ' w ') // approximate predecessor if we don't have it
@@ -943,6 +984,107 @@ export default function ResignGUI() {
     }
   }
 
+  function applyNextQueuedPreMove() {
+    if (gameModeRef.current !== 'engine' || gameRef.current.turn() !== playerColorRef.current || gameRef.current.isGameOver()) {
+      return false;
+    }
+
+    const queue = [...preMovesRef.current];
+    while (queue.length > 0) {
+      const nextMove = queue.shift()!;
+      try {
+        const move = gameRef.current.move({
+          from: nextMove.from,
+          to: nextMove.to,
+          promotion: nextMove.promotion,
+        });
+
+        if (move) {
+          setPreMoves(queue);
+          suppressNextSquareSelection();
+          recordPlayerMove(move);
+          return true;
+        }
+      } catch (_error) {
+        // Skip invalid queued moves and keep checking the rest.
+      }
+    }
+
+    setPreMoves([]);
+    return false;
+  }
+
+  function buildUciHistory() {
+    return moveHistoryRef.current.map((move) => `${move.from}${move.to}${move.promotion ?? ''}`);
+  }
+
+  function requestNextDuelMove() {
+    if (
+      !duelActiveRef.current ||
+      duelBusyRef.current ||
+      !gameStartedRef.current ||
+      isPaused ||
+      gameRef.current.isGameOver() ||
+      !ws.current ||
+      ws.current.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+
+    const engineId = gameRef.current.turn() === 'w' ? 'resign' : 'stockfish';
+    duelBusyRef.current = true;
+    setStatusText(`${engineId === 'resign' ? 'RESIGN' : 'Stockfish'} is thinking...`);
+    ws.current.send(`__DUEL_MOVE__ ${engineId} 250 ${buildUciHistory().join(' ')}`.trim());
+  }
+
+  function recordDuelMove(uciMove: string) {
+    try {
+      const move = gameRef.current.move({
+        from: uciMove.slice(0, 2),
+        to: uciMove.slice(2, 4),
+        promotion: uciMove.length > 4 ? uciMove[4] : undefined,
+      });
+
+      if (!move) {
+        setStatusText(`Duel returned an illegal move: ${uciMove}`);
+        duelActiveRef.current = false;
+        setGameStarted(false);
+        return;
+      }
+
+      const totalMoves = moveHistoryRef.current.length;
+      const currentEval = evalScoreRef.current;
+      const recorded: RecordedMove = {
+        moveNumber: Math.floor(totalMoves / 2) + 1,
+        san: move.san,
+        from: move.from,
+        to: move.to,
+        promotion: move.promotion as PromotionPiece | undefined,
+        fen: gameRef.current.fen(),
+        color: move.color as 'w' | 'b',
+        evalBefore: currentEval,
+        evalAfter: currentEval,
+        cpLoss: 0,
+        classification: totalMoves < 12 ? 'book' : 'best',
+      };
+
+      setMoveHistory((prev) => [...prev, recorded]);
+      setFen(gameRef.current.fen());
+      checkGameEnd();
+
+      if (!gameRef.current.isGameOver()) {
+        setTimeout(() => requestNextDuelMove(), 250);
+      } else {
+        duelActiveRef.current = false;
+      }
+    } catch (error) {
+      console.error('Duel move failed:', error);
+      setStatusText('Engine duel failed.');
+      duelActiveRef.current = false;
+      setGameStarted(false);
+    }
+  }
+
   const isPlayerPromotionMove = useCallback((from: string, to: string) => {
     const pseudoMoves = getPlayerPseudoLegalMoves(from);
     return pseudoMoves.some((move) => move.to === to && move.flags.includes('p'));
@@ -954,6 +1096,7 @@ export default function ResignGUI() {
     const turn = gameRef.current.turn();
     const currentGameMode = gameModeRef.current;
     const currentPlayerColor = playerColorRef.current;
+    if (currentGameMode === 'duel') return false;
     const isPlayerTurn = currentGameMode === 'engine' ? turn === currentPlayerColor : true;
 
     if (currentGameMode === 'engine') {
@@ -976,6 +1119,7 @@ export default function ResignGUI() {
 
   const handlePieceDrag = useCallback(({ piece, square }: { isSparePiece: boolean; piece: any; square: string | null }) => {
     if (!square || !gameStartedRef.current || isPaused || pendingPromotion) return;
+    if (gameModeRef.current === 'duel') return;
 
     setDraggedSquare(square);
 
@@ -1012,6 +1156,8 @@ export default function ResignGUI() {
   const handleSquareClick = useCallback(({ piece, square }: { piece: any; square: string }) => {
     setDraggedSquare(null);
     if (!gameStartedRef.current || gameRef.current.isGameOver() || isPaused || pendingPromotion) return;
+    if (gameModeRef.current === 'duel') return;
+    if (Date.now() < suppressSquareSelectionUntilRef.current) return;
 
     const turn = gameRef.current.turn();
     const currentGameMode = gameModeRef.current;
@@ -1021,19 +1167,24 @@ export default function ResignGUI() {
     if (currentGameMode === 'engine' && !isPlayerTurn) {
       // Engine's turn: pre-moving via clicks
       if (selectedSquare) {
+        if (selectedSquare === square) {
+          setSelectedSquare(null);
+          setLegalMoveSquares({});
+          return;
+        }
+
         const pseudoMoves = getPlayerPseudoLegalMoves(selectedSquare);
         const resolvedTargetSquare = resolveCastleTargetSquare(selectedSquare, square, pseudoMoves);
         const matchedMove = pseudoMoves.find(m => m.to === resolvedTargetSquare);
 
         if (matchedMove) {
           const isPromotion = matchedMove.flags.includes('p');
-          setPreMove({
+          queuePreMove({
             from: selectedSquare,
             to: resolvedTargetSquare,
             promotion: isPromotion ? 'q' : undefined,
           });
-          setSelectedSquare(null);
-          setLegalMoveSquares({});
+          clearSelectionAndHighlights();
           return;
         }
       }
@@ -1050,15 +1201,20 @@ export default function ResignGUI() {
         setLegalMoveSquares(buildHighlightsForMoves(square, moves));
       } else {
         // Clicked elsewhere on the board: cancel active preMove, selection, and highlights
-        setSelectedSquare(null);
-        setLegalMoveSquares({});
-        setPreMove(null);
+        clearSelectionAndHighlights();
+        setPreMoves([]);
       }
       return;
     }
 
     if (currentGameMode === 'engine' && engineThinking.current) return;
     if (selectedSquare) {
+      if (selectedSquare === square) {
+        setSelectedSquare(null);
+        setLegalMoveSquares({});
+        return;
+      }
+
       const legalMoves = gameRef.current.moves({ square: selectedSquare as Square, verbose: true }) as Move[];
       const resolvedTargetSquare = resolveCastleTargetSquare(selectedSquare, square, legalMoves);
 
@@ -1073,8 +1229,8 @@ export default function ResignGUI() {
       try {
         const move = gameRef.current.move({ from: selectedSquare, to: resolvedTargetSquare });
         if (move) {
-          setSelectedSquare(null);
-          setLegalMoveSquares({});
+          clearSelectionAndHighlights();
+          suppressNextSquareSelection();
           recordPlayerMove(move);
           return;
         }
@@ -1093,8 +1249,7 @@ export default function ResignGUI() {
       }
       setLegalMoveSquares(showLegalMoves(square));
     } else {
-      setSelectedSquare(null);
-      setLegalMoveSquares({});
+      clearSelectionAndHighlights();
       if (gameRef.current.isCheck()) {
         setStatusText(getCheckWarningText());
       }
@@ -1104,6 +1259,7 @@ export default function ResignGUI() {
   const handlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }) => {
     setDraggedSquare(null);
     if (!gameStartedRef.current || !targetSquare || pendingPromotion) return false;
+    if (gameModeRef.current === 'duel') return false;
 
     const turn = gameRef.current.turn();
     const currentGameMode = gameModeRef.current;
@@ -1112,8 +1268,7 @@ export default function ResignGUI() {
 
     if (currentGameMode === 'engine' && !isPlayerTurn) {
       // Engine's turn: queuing a pre-move
-      setSelectedSquare(null);
-      setLegalMoveSquares({});
+      clearSelectionAndHighlights();
 
       const pseudoMoves = getPlayerPseudoLegalMoves(sourceSquare);
       const resolvedTargetSquare = resolveCastleTargetSquare(sourceSquare, targetSquare, pseudoMoves);
@@ -1121,7 +1276,7 @@ export default function ResignGUI() {
 
       if (isPseudoLegal) {
         const isPromotion = pseudoMoves.some(m => m.to === resolvedTargetSquare && m.flags.includes('p'));
-        setPreMove({
+        queuePreMove({
           from: sourceSquare,
           to: resolvedTargetSquare,
           promotion: isPromotion ? 'q' : undefined,
@@ -1132,8 +1287,7 @@ export default function ResignGUI() {
 
     if (engineThinking.current || gameRef.current.isGameOver()) return false;
 
-    setSelectedSquare(null);
-    setLegalMoveSquares({});
+    clearSelectionAndHighlights();
 
     const legalMoves = gameRef.current.moves({ square: sourceSquare as Square, verbose: true }) as Move[];
     const resolvedTargetSquare = resolveCastleTargetSquare(sourceSquare, targetSquare, legalMoves);
@@ -1149,6 +1303,7 @@ export default function ResignGUI() {
     try {
       const move = gameRef.current.move({ from: sourceSquare, to: resolvedTargetSquare });
       if (move) {
+        suppressNextSquareSelection();
         recordPlayerMove(move);
         return true;
       }
@@ -1160,7 +1315,7 @@ export default function ResignGUI() {
 
   const handleRightClickSquare = useCallback(() => {
     setDraggedSquare(null);
-    setPreMove(null);
+    setPreMoves([]);
   }, []);
 
   const undoMove = useCallback(() => {
@@ -1241,12 +1396,14 @@ export default function ResignGUI() {
     }
   }
 
-  const startGame = useCallback((asColor: 'w' | 'b', mode: 'engine' | 'friend' = 'engine') => {
+  const startGame = useCallback((asColor: 'w' | 'b', mode: GameMode = 'engine') => {
     resetEngine();
     gameRef.current = new Chess();
     gameStartedRef.current = true;
     playerColorRef.current = asColor;
     gameModeRef.current = mode;
+    duelActiveRef.current = mode === 'duel';
+    duelBusyRef.current = false;
     setFen(gameRef.current.fen());
     setEngineLines([]);
     setEvalScore(30);
@@ -1260,8 +1417,8 @@ export default function ResignGUI() {
     setReviewIndex(-1);
     setPlayerColor(asColor);
     setGameMode(mode);
-    setBoardOrientation(asColor === 'w' ? 'white' : 'black');
-    setPreMove(null);
+    setBoardOrientation(mode === 'duel' ? 'white' : (asColor === 'w' ? 'white' : 'black'));
+    setPreMoves([]);
     
     evalMap.current = {
       'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': 30,
@@ -1275,7 +1432,10 @@ export default function ResignGUI() {
     setGameStarted(true);
     engineThinking.current = false;
 
-    if (mode === 'engine') {
+    if (mode === 'duel') {
+      setStatusText('RESIGN vs Stockfish');
+      setTimeout(() => requestNextDuelMove(), 200);
+    } else if (mode === 'engine') {
       if (asColor === 'w') {
         setStatusText('Your turn');
       } else {
@@ -1294,6 +1454,12 @@ export default function ResignGUI() {
     }
     return () => stopTimer();
   }, [gameStarted, timeControlIdx, isPaused, startTimer, stopTimer]);
+
+  useEffect(() => {
+    if (gameStarted && gameMode === 'duel' && !isPaused) {
+      requestNextDuelMove();
+    }
+  }, [gameStarted, gameMode, isPaused]);
 
   // ===== Review navigation =====
   function goToMove(idx: number) {
@@ -1434,7 +1600,9 @@ export default function ResignGUI() {
             <>
               <div className="player-profile">
                 <div className="player-avatar">
-                  {gameMode === 'engine' ? (
+                  {gameMode === 'duel' ? (
+                    <div style={{ width: '100%', height: '100%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', color: '#f3f3f3' }}>SF</div>
+                  ) : gameMode === 'engine' ? (
                     isLogoBot(selectedBot.id) ? (
                       <img src="/Logo.png" className="brand-logo-image" alt={`${selectedBot.name} logo`} />
                     ) : (
@@ -1444,7 +1612,7 @@ export default function ResignGUI() {
                     <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                   )}
                 </div>
-                <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
+                <span>{gameMode === 'duel' ? 'Stockfish ' : gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : gameMode === 'duel' ? '(Engine)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'b' ? 'active-clock' : ''} ${blackTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(blackTime)}
@@ -1455,7 +1623,9 @@ export default function ResignGUI() {
             <>
               <div className="player-profile">
                 <div className="player-avatar">
-                  {gameMode === 'engine' ? (
+                  {gameMode === 'duel' ? (
+                    <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
+                  ) : gameMode === 'engine' ? (
                     isLogoBot(selectedBot.id) ? (
                       <img src="/Logo.png" className="brand-logo-image" alt={`${selectedBot.name} logo`} />
                     ) : (
@@ -1465,7 +1635,7 @@ export default function ResignGUI() {
                     <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                   )}
                 </div>
-                <span>{gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : ''}</span></span>
+                <span>{gameMode === 'duel' ? 'RESIGN ' : gameMode === 'engine' ? `${selectedBot.name} ` : 'Friend (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? `(${selectedBot.elo})` : gameMode === 'duel' ? '(Engine)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'w' ? 'active-clock' : ''} ${whiteTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(whiteTime)}
@@ -1494,7 +1664,7 @@ export default function ResignGUI() {
                 lightSquareStyle: { backgroundColor: BOARD_THEMES[boardThemeIdx].light },
                 squareStyles: boardSquareStyles,
                 showNotation: true,
-                allowDragging: gameStarted && !isPaused && (
+                allowDragging: gameStarted && gameMode !== 'duel' && !isPaused && (
                   !engineThinking.current || 
                   (gameMode === 'engine' && gameRef.current.turn() !== playerColor)
                 ),
@@ -1520,7 +1690,7 @@ export default function ResignGUI() {
                 <div className="player-avatar">
                   <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                 </div>
-                <span>{gameMode === 'engine' ? 'You ' : 'You (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
+                <span>{gameMode === 'duel' ? 'RESIGN ' : gameMode === 'engine' ? 'You ' : 'You (White) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : gameMode === 'duel' ? '(Engine)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'w' ? 'active-clock' : ''} ${whiteTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(whiteTime)}
@@ -1533,7 +1703,7 @@ export default function ResignGUI() {
                 <div className="player-avatar">
                   <img src="/Logo.png" className="brand-logo-image" alt="RESIGN logo" />
                 </div>
-                <span>{gameMode === 'engine' ? 'You ' : 'You (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : ''}</span></span>
+                <span>{gameMode === 'duel' ? 'Stockfish ' : gameMode === 'engine' ? 'You ' : 'You (Black) '}<span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: 12 }}>{gameMode === 'engine' ? '(1000)' : gameMode === 'duel' ? '(Engine)' : ''}</span></span>
               </div>
               <div className={`player-clock ${isPlaying && gameRef.current.turn() === 'b' ? 'active-clock' : ''} ${blackTime <= 0 ? 'timeout' : ''}`}>
                 {noTimer ? '∞' : formatTime(blackTime)}
@@ -1566,6 +1736,9 @@ export default function ResignGUI() {
                   <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
                     <Users size={14} /> Pass & Play
                   </button>
+                  <button className={`mode-tab ${gameMode === 'duel' ? 'active' : ''}`} onClick={() => setGameMode('duel')}>
+                    <Swords size={14} /> RESIGN vs Stockfish
+                  </button>
                 </div>
 
                 {/* Time control */}
@@ -1588,23 +1761,32 @@ export default function ResignGUI() {
 
             {gameStarted ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={undoMove} disabled={moveHistory.length === 0 || engineThinking.current}>
-                    <Undo2 size={16} />
+                {gameMode === 'duel' ? (
+                  <button className="btn-secondary" style={{ justifyContent: 'center' }} onClick={() => setIsPaused(!isPaused)}>
+                    {isPaused ? <><PlayCircle size={16} /> Resume Duel</> : <><Pause size={16} /> Pause Duel</>}
                   </button>
-                  <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={redoMove} disabled={undoneMoves.length === 0 || engineThinking.current}>
-                    <Redo2 size={16} />
-                  </button>
-                  <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setIsPaused(!isPaused)}>
-                    {isPaused ? <><PlayCircle size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
-                  </button>
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={undoMove} disabled={moveHistory.length === 0 || engineThinking.current}>
+                      <Undo2 size={16} />
+                    </button>
+                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={redoMove} disabled={undoneMoves.length === 0 || engineThinking.current}>
+                      <Redo2 size={16} />
+                    </button>
+                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setIsPaused(!isPaused)}>
+                      {isPaused ? <><PlayCircle size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
+                    </button>
+                  </div>
+                )}
                 <button className="btn-stop" onClick={() => {
                   if (window.confirm('Are you sure you want to stop the game?')) {
                     stopTimer();
                     setGameStarted(false);
                     setIsPaused(false);
                     engineThinking.current = false;
+                    duelActiveRef.current = false;
+                    duelBusyRef.current = false;
+                    setPreMoves([]);
                     setStatusText('Game stopped');
                     if (ws.current && ws.current.readyState === WebSocket.OPEN) ws.current.send('stop');
                   }
@@ -1626,6 +1808,10 @@ export default function ResignGUI() {
                       <Crown size={16} color="#f3f3f3" fill="#111111" /> Play as Black
                     </button>
                   </>
+                ) : gameMode === 'duel' ? (
+                  <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => startGame('w', 'duel')}>
+                    <Swords size={20} /> Watch RESIGN vs Stockfish
+                  </button>
                 ) : (
                   <>
                     <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => startGame('w', 'friend')}>
@@ -1636,7 +1822,7 @@ export default function ResignGUI() {
               </>
             )}
 
-            <button className="btn-secondary" onClick={() => { stopTimer(); setGameStarted(false); gameRef.current = new Chess(); setFen(gameRef.current.fen()); setEvalScore(30); setEngineLines([]); setMoveHistory([]); setPendingPromotion(null); setStatusText('Click "Start Game" to begin'); engineThinking.current = false; }}>
+            <button className="btn-secondary" onClick={() => { stopTimer(); setGameStarted(false); gameRef.current = new Chess(); setFen(gameRef.current.fen()); setEvalScore(30); setEngineLines([]); setMoveHistory([]); setPendingPromotion(null); setPreMoves([]); duelActiveRef.current = false; duelBusyRef.current = false; setStatusText('Click "Start Game" to begin'); engineThinking.current = false; }}>
               <Flag size={16} color="#e5a956" /> Reset
             </button>
 
