@@ -1732,24 +1732,15 @@ export default function ResignGUI() {
                 <div className="game-mode-selector">
                   <button className={`mode-tab ${gameMode === 'engine' ? 'active' : ''}`} onClick={() => setGameMode('engine')}>
                     <Cpu size={14} />
-                    <span className="mode-tab-copy">
-                      <span className="mode-tab-title">vs RESIGN</span>
-                      <span className="mode-tab-subtitle">Play the house engine</span>
-                    </span>
+                    <span className="mode-tab-title">Play RESIGN</span>
                   </button>
                   <button className={`mode-tab ${gameMode === 'friend' ? 'active' : ''}`} onClick={() => setGameMode('friend')}>
                     <Users size={14} />
-                    <span className="mode-tab-copy">
-                      <span className="mode-tab-title">Pass &amp; Play</span>
-                      <span className="mode-tab-subtitle">Two humans, one board</span>
-                    </span>
+                    <span className="mode-tab-title">2 Players</span>
                   </button>
                   <button className={`mode-tab ${gameMode === 'duel' ? 'active' : ''}`} onClick={() => setGameMode('duel')}>
                     <Swords size={14} />
-                    <span className="mode-tab-copy">
-                      <span className="mode-tab-title">RESIGN vs Stockfish</span>
-                      <span className="mode-tab-subtitle">Watch the engines fight</span>
-                    </span>
+                    <span className="mode-tab-title">Watch Duel</span>
                   </button>
                 </div>
 

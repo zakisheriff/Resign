@@ -2,7 +2,7 @@ export const SITE_URL = "https://resign.theatom.lk";
 export const SITE_NAME = "RESIGN Chess";
 export const SITE_SHORT_NAME = "RESIGN";
 export const SITE_TITLE = "RESIGN Chess Engine - Play Chess Online Against an Unbeatable AI";
-export const SITE_DESCRIPTION = "Challenge RESIGN, a Powerful Chess Engine built to Crush Human Players. Play Chess Online against RESIGN, custom AI bots, and themed opponents in rapid, blitz, and pass-and-play modes.";
+export const SITE_DESCRIPTION = "Challenge RESIGN, a Powerful Chess Engine built to Crush Human Players. Play Chess Online against RESIGN, and rapid, blitz, and pass-and-play modes.";
 export const SITE_KEYWORDS = [
   // Brand
   "RESIGN chess",

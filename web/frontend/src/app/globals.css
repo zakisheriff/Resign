@@ -1188,18 +1188,18 @@ body {
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: bold;
-  padding: 12px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 14px 10px;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 82px;
-  text-align: left;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
+  text-align: center;
 }
 
 .mode-tab.active {
@@ -1215,32 +1215,11 @@ body {
 
 .mode-tab svg {
   flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.mode-tab-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
 }
 
 .mode-tab-title {
   display: block;
-  line-height: 1.15;
-}
-
-.mode-tab-subtitle {
-  display: block;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.mode-tab.active .mode-tab-subtitle,
-.mode-tab:hover .mode-tab-subtitle {
-  color: rgba(255,255,255,0.72);
+  line-height: 1.1;
 }
 
 .btn-duel-launch {

@@ -61,10 +61,10 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     images: [
       {
-        url: "/opengraph-image",
+        url: `${SITE_URL}${SITE_LOGO_PATH}`,
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} social preview`,
+        alt: `${SITE_NAME} logo`,
       },
     ],
   },
@@ -72,10 +72,13 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/twitter-image"],
+    images: [`${SITE_URL}${SITE_LOGO_PATH}`],
   },
   icons: {
-    icon: [{ url: "/icon.png", type: "image/png" }, { url: SITE_LOGO_PATH, type: "image/png" }],
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: SITE_LOGO_PATH, type: "image/png" },
+    ],
     shortcut: ["/icon.png"],
     apple: ["/apple-icon.png"],
   },
@@ -105,8 +108,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
-
   return (
     <html
       lang="en"
